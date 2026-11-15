@@ -5,6 +5,6 @@ A 3D slingshot game built from Wikipedia: each level is a whole article laid out
 - `index.html`: the whole game (three.js + cannon-es, loaded from a CDN).
 - `featured.json`: saved copy of Wikipedia:Featured articles, used only if the live list can't be fetched. Refresh with `python3 tools/featured_list.py`.
 - `sfx/`: sound effects (`sfx/raw` holds the sources, not deployed).
-- `tools/`: leaderboard SQL (Supabase) and helper scripts.
+- `tools/`: helper scripts, plus the old Supabase leaderboard SQL (history; the leaderboard is now a Cloudflare Worker, `LB.url` in `index.html`).
 
 Pushing to `main` deploys to production on Vercel (project `wiki-linkshot`).

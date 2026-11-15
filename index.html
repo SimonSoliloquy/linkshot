@@ -209,35 +209,31 @@ function playerId() {
 }
 const playerName = () => (store.get('linkshot-name') || '').slice(0, 20);
 
-// ---------- leaderboard: a Supabase project (url and publishable key, both public by design). Until they are set every call returns null and the UI says "Leaderboard offline". ----------
+// ---------- leaderboard: a Cloudflare Worker (public URL, no key). Until its URL is set every call returns null and the UI says "Leaderboard offline". ----------
 const LB = {
-  url: 'https://aaxqziaaphktnptmrldh.supabase.co',
-  key: 'sb_publishable_jnvvXVdgiMMfZkFASLUakg_wD0ua7kH',
-  get endpoint() { return this.url && this.key ? this.url : null; },
-  async rpc(fn, body) {
+  url: 'https://leaderboards.ai-wizards.workers.dev',
+  get endpoint() { return this.url && !this.url.includes('WORKER_SUBDOMAIN') ? this.url.replace(/\/$/, '') : null; },
+  async req(path, init = {}) {
     if (!this.endpoint) return null;
     const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 5000);
     try {
-      const r = await fetch(this.url.replace(/\/$/, '') + '/rest/v1/rpc/' + fn, { method: 'POST', signal: ac.signal, keepalive: true,
-        headers: { apikey: this.key, Authorization: 'Bearer ' + this.key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!r.ok) { console.warn('Leaderboard', fn, r.status, (await r.text()).slice(0, 200)); return null; }
+      const r = await fetch(this.endpoint + '/linkshot/' + path, { ...init, signal: ac.signal });
+      if (!r.ok) { console.warn('Leaderboard', path, r.status, (await r.text()).slice(0, 200)); return null; }
       return await r.json();
-    } catch (e) { console.warn('Leaderboard', fn, e?.message); return null; } finally { clearTimeout(timer); }
+    } catch (e) { console.warn('Leaderboard', path, e?.message); return null; } finally { clearTimeout(timer); }
   },
-  // run = { player, name, score, multiplier, articles, target, reached, daily, day, seconds, version } -> { rankAllTime, rankDaily, totalPlayers } | null
+  // run = { player, name, score, multiplier, articles, target, reached, daily, day, seconds, version, endedOn } -> { rankAllTime, rankDaily, totalPlayers } | null
   async submit(run) {
     if (/^(localhost|127\.|\[::1\])/.test(location.hostname)) return null;     // a local test copy never writes to the real leaderboard
-    const args = { p_player: run.player, p_name: run.name, p_score: Math.round(run.score), p_multiplier: Math.round(run.multiplier),
-      p_articles: Math.round(run.articles), p_target: run.target, p_reached: run.reached, p_daily: !!run.daily, p_day: run.day, p_seconds: run.seconds, p_version: run.version };
-    let d = await this.rpc('linkshot_submit', { ...args, p_ended_on: run.endedOn || null });
-    if (d == null) d = await this.rpc('linkshot_submit', args);                    // database not updated yet: save without the article
-    const x = Array.isArray(d) ? d[0] : d;
-    return x && typeof x === 'object' ? { rankAllTime: +x.rank_all_time || null, rankDaily: +x.rank_daily || null, totalPlayers: +x.total_players || null } : null;
+    const body = { player: run.player, name: run.name, score: Math.round(run.score), multiplier: Math.round(run.multiplier), articles: Math.round(run.articles),
+      target: run.target, reached: run.reached, daily: !!run.daily, day: run.day, seconds: run.seconds, version: run.version, endedOn: run.endedOn || null };
+    const x = await this.req('submit', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return x && typeof x === 'object' ? { rankAllTime: +x.rankAllTime || null, rankDaily: +x.rankDaily || null, totalPlayers: +x.totalPlayers || null } : null;
   },
-  // scope 'daily' | 'alltime' -> [{ name, score }] | null
+  // scope 'daily' | 'alltime' -> [{ name, score, endedOn }] | null
   async top(scope, n = 5) {
-    const d = await this.rpc('linkshot_top', { p_scope: scope, p_day: DAY, p_n: n });
-    return Array.isArray(d) ? d.slice(0, n).map(x => ({ name: String(x?.name || 'Anonymous').slice(0, 20), score: +x?.score || 0, endedOn: x?.ended_on ? String(x.ended_on).slice(0, 80) : '' })) : null;
+    const d = await this.req(`top?scope=${encodeURIComponent(scope)}&day=${encodeURIComponent(DAY)}&n=${n}`);
+    return Array.isArray(d) ? d.slice(0, n).map(x => ({ name: String(x?.name || 'Anonymous').slice(0, 20), score: +x?.score || 0, endedOn: x?.endedOn ? String(x.endedOn).slice(0, 80) : '' })) : null;
   },
 };
 function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
