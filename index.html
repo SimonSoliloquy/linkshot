@@ -1,0 +1,1588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Linkshot</title>
+<style>
+  :root { --ink:#e9edf5; --dim:#9aa6bd; --link:#6ea0ff; --gold:#ffcf4a; --bg:#0b1020; --panel:#121b36; --line:#33416a; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink); overflow:hidden;
+    font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; overscroll-behavior:none;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; }
+  body { position:fixed; inset:0; width:100%; }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+  #hud { position:fixed; left:0; right:0; top:0; padding:calc(8px + env(safe-area-inset-top)) 12px 8px;
+    display:flex; gap:10px; align-items:center; pointer-events:none;
+    background:linear-gradient(#0b1020ee,#0b102000); }
+  #target { flex:1; min-width:0; display:flex; gap:8px; align-items:center; pointer-events:auto; cursor:pointer; }
+  #target img:not([src]) { visibility:hidden; }
+  #target img { width:38px; height:38px; object-fit:cover; border-radius:6px; background:#1b2540; flex:none; }
+  #target .t { min-width:0; }
+  .lab { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); }
+  #target b { display:block; color:var(--gold); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #board { margin:0 auto; display:flex; gap:18px; align-items:flex-end; background:#121b36dd; border:1px solid var(--line); border-radius:12px;
+    padding:6px 18px; font-variant-numeric:tabular-nums; white-space:nowrap; flex:none; }
+  #board > div { text-align:center; } #board b { display:block; font-size:22px; }
+  #board #score { font-size:44px; line-height:1; color:#fff; } #board #score.bump { color:var(--gold); }
+  #lives { color:#ff6b6b; letter-spacing:1px; }
+  .pop { position:fixed; left:0; top:0; pointer-events:none; font-weight:800; font-size:20px; color:var(--gold); text-shadow:0 1px 4px #000; will-change:transform; }
+  #wiki { position:fixed; top:0; right:0; bottom:0; width:420px; max-width:100vw; background:var(--panel); border-left:1px solid var(--line);
+    display:flex; flex-direction:column; transform:translateX(100%); transition:transform .25s, visibility 0s .25s; visibility:hidden; }
+  #wiki.on { transform:none; visibility:visible; transition:transform .25s; }
+  #wiki header { display:flex; align-items:center; gap:8px; padding:calc(8px + env(safe-area-inset-top)) 10px 8px; border-bottom:1px solid var(--line); }
+  #wiki header b { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #wiki header a { color:var(--dim); font-size:12px; }
+  #wiki iframe { flex:1; border:0; width:100%; background:#fff; }
+  @media (max-width:700px) {
+    #wiki { top:auto; left:0; width:auto; height:88vh; height:88dvh; border-left:0; border-top:1px solid var(--line); border-radius:14px 14px 0 0;
+      transform:translateY(100%); box-shadow:0 -8px 30px #0008; }
+    #wiki header { padding-top:8px; } #wikix { padding:9px 16px; font-size:17px; }
+  }
+  @media (min-width:701px) { body.wiki #btns { right:430px; } body.wiki #hud { padding-right:432px; } body.wiki #aimhint { margin-left:-210px; } }
+  input { font:inherit; color:var(--ink); background:#0b1020; border:1px solid var(--line); border-radius:10px; padding:11px; flex:1; min-width:0;
+    -webkit-user-select:text; user-select:text; }
+  #final { font-size:44px; font-weight:800; color:var(--gold); font-variant-numeric:tabular-nums; line-height:1.1; }
+  #pb { display:inline-block; margin:4px 0; padding:3px 10px; border-radius:999px; background:#2c8a52; color:#fff; font-weight:700; font-size:13px; }
+  #pb[hidden], #namebox[hidden] { display:none; }
+  .card ol { margin:4px 0 10px; padding-left:22px; font-size:14px; color:#c6cfe2; } .card ol li.me { color:var(--gold); }
+  .hs { display:flex; gap:14px; margin:12px 0 4px; } .hs b { display:block; font-size:22px; color:var(--gold); font-variant-numeric:tabular-nums; }
+  #btns { flex-wrap:nowrap; justify-content:flex-end; max-width:calc(100vw - 20px); position:fixed; right:10px; bottom:calc(34px + env(safe-area-inset-bottom)); display:flex; gap:8px; }
+  @media (max-width:480px) { #btns { gap:6px; right:8px; } #btns button { padding:7px 9px; font-size:13px; white-space:nowrap; } }
+  button { font:inherit; color:var(--ink); background:#1b2540; border:1px solid var(--line); border-radius:10px;
+    padding:9px 13px; cursor:pointer; }
+  button:active { background:#27345a; }
+  #credit { position:fixed; left:0; right:0; bottom:0; padding:5px 10px calc(5px + env(safe-area-inset-bottom));
+    font-size:11px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:#0b1020cc; }
+  #credit a { color:var(--dim); }
+  #toast { position:fixed; left:50%; top:20%; transform:translateX(-50%); background:#101a35ee; border:1px solid var(--line);
+    padding:8px 14px; border-radius:10px; opacity:0; transition:opacity .25s; pointer-events:none; text-align:center; max-width:80vw; }
+  #toast.on { opacity:1; }
+  #aimhint { position:fixed; left:50%; top:calc(64px + env(safe-area-inset-top)); transform:translateX(-50%);
+    padding:6px 12px; border-radius:999px; background:#101a35ee; border:1px solid var(--line); font-weight:600;
+    white-space:nowrap; max-width:86vw; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }
+  #aimhint[hidden] { display:none; }
+  #aimhint.link { color:var(--link); border-color:#2b5fd9; } #aimhint.goal { color:var(--gold); border-color:#b98a00; }
+  #aimhint.bad { color:#ff8f8f; border-color:#8a2f2f; } #aimhint.bounce { color:#7be3a0; border-color:#2c8a52; }
+  #card { position:fixed; left:10px; bottom:calc(84px + env(safe-area-inset-bottom)); max-width:min(340px, calc(100vw - 20px));
+    display:flex; gap:10px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px;
+    pointer-events:none; }
+  #card[hidden] { display:none; }
+  #card img { width:64px; height:64px; object-fit:cover; border-radius:8px; background:#1b2540; flex:none; }
+  #card img:not([src]) { display:none; }
+  #card b { color:var(--link); display:block; } #card span { color:#c6cfe2; font-size:13px; }
+  #flash { position:fixed; inset:0; background:#dbe7ff; opacity:0; pointer-events:none; transition:opacity .35s; }
+  #flash.on { opacity:.9; transition:none; }
+  .overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#0b1020e6; padding:16px; box-sizing:border-box; }
+  .overlay[hidden] { display:none; }
+  .card { max-width:420px; width:100%; max-height:100%; overflow:auto; box-sizing:border-box; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px; }
+  .card h1 { margin:0 0 6px; font-size:28px; letter-spacing:.02em; }
+  .card h1 em { font-style:normal; color:var(--link); }
+  .card p, .card li { color:#c6cfe2; }
+  .card ul { padding-left:18px; margin:10px 0 16px; }
+  .row { display:flex; gap:8px; margin-top:8px; } .row button { flex:1; padding:13px; font-size:16px; }
+  .go { background:#2b5fd9; border-color:#2b5fd9; font-weight:600; }
+  .path { font-size:13px; color:var(--dim); margin:8px 0 6px; }
+  .tops { margin:4px 0 0; padding-left:20px; font-size:13px; } .tops li { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #landed { margin:6px 0 10px; } #landed ul { margin:4px 0 0; padding-left:18px; max-height:30vh; overflow:auto; font-size:13px; }
+  #landed a { color:#c9a7ff; } #landed .on, .tops .on, ol .on { color:var(--dim); } #landed .thru { color:var(--gold); }
+  .k { display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:-1px; margin-right:4px; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
+  "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
+} }
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div id="target" style="display:none"><img id="timg" alt=""><div class="t"><span class="lab" id="tlab">Reach</span><b id="tname">…</b></div></div>
+  <div id="board"><div><span class="lab">Score</span><b id="score">0</b></div><div><span class="lab">Mult</span><b id="mult">×1</b></div><div><span class="lab">Lives</span><b id="lives">♥♥♥</b></div></div>
+</div>
+<div id="aimhint" hidden></div>
+<div id="card" hidden><img id="cimg" alt=""><div><b id="ctitle"></b><span id="cdesc"></span></div></div>
+<div id="btns"><button id="wikib">📖 Read this article</button><button id="mute" aria-label="Sound">🔊</button><button id="back">↩ Back</button><button id="menu">Menu</button></div>
+<div id="credit"></div>
+<div id="toast"></div>
+<div id="flash"></div>
+<div id="wiki" aria-hidden="true"><header><b id="wikit">Article</b><a id="wikiopen" href="#" target="_blank" rel="noopener">Open ↗</a><button id="wikix" aria-label="Close the article">✕ Close</button></header>
+  <iframe id="wikif" title="Wikipedia article" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe></div>
+
+<div class="overlay" id="intro">
+  <div class="card">
+    <h1>Link<em>shot</em></h1>
+    <p>Fling a ball up a Wikipedia article.</p>
+    <div class="row"><button class="go" id="daily">Daily challenge</button><button id="random">Random game</button></div>
+    <p class="lab" id="featured" style="margin:6px 0 0"></p>
+    <div class="hs"><div><span class="lab">Personal best</span><b id="hsbest">–</b></div><div><span class="lab" id="hsdaylab">Today's daily best</span><b id="hsday">–</b></div></div>
+    <div class="lab" id="hstoplab">Today's top 5</div><ol id="hstop"></ol>
+    <ul>
+      <li><b>Swipe down and let go</b> to fling.</li>
+      <li>Land on words to light them off for points.</li>
+      <li>Rest on a <span style="color:var(--link)">blue link</span> to jump there. Each page needs one more.</li>
+      <li>3 lives. Grab ♥ and ×3 power-ups.</li>
+    </ul>
+    <p class="lab" id="ver" style="margin:4px 0 0;opacity:.6">v2026-11-15b</p>
+  </div>
+</div>
+<div class="overlay" id="win" hidden>
+  <div class="card">
+    <h1 id="endh">You made it</h1>
+    <div id="final">0</div>
+    <div id="pb" hidden>New personal best!</div>
+    <p id="winline"></p>
+    <div class="path" id="winpath"></div>
+    <div id="landed"></div>
+    <div id="namebox" hidden><span class="lab">Your name for this score</span>
+      <div class="row" style="margin-top:4px"><input id="nick" maxlength="20" placeholder="Your name" autocomplete="nickname" enterkeyhint="send"><button id="nicksave" class="go" style="flex:none">Save score</button></div></div>
+    <p class="lab" id="rank" style="margin:10px 0"></p>
+    <div class="row" style="gap:14px;align-items:flex-start;margin:0 0 8px"><div style="flex:1;min-width:0"><span class="lab">Today's daily top 5</span><ol id="enddaily" class="tops"></ol></div><div style="flex:1;min-width:0"><span class="lab">All-time top 5</span><ol id="endall" class="tops"></ol></div></div>
+    <div class="lab">Your top three</div><ol id="top3"></ol>
+    <div class="row"><button class="go" id="share">Share</button><button id="again">Play again</button></div>
+    <div class="row"><button id="tomenu">Menu</button></div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import * as CANNON from 'cannon-es';
+
+// ---------- tuning ----------
+const FS = 1.2;            // letter size
+const TH = 0.5;            // tile thickness
+const LETTER = 0.16;       // how far letters stand up from the tile
+const PAD = 0.16;          // tile margin around a word
+const GAPX = 1.15;         // space between words: wide enough for the ball to fall through
+const LH = 1.32 * FS;      // tile depth (one line of text)
+const STEP_Z = LH + 0.06;  // each line sits this much further away
+const STEP_Y = 0.55;       // ...and this much higher
+const R = 0.4;             // ball radius
+const GRAV = -24;
+const MAXV = 27.6;           // fling speed at full pull
+const ELEV = 50 * Math.PI / 180;
+const SINK = 0;             // links are flat tiles like every other word (the dents were removed at the owner's request)
+const HOP_VY = 13.5;        // every plain word bounces the ball this hard...
+const HOP_FWD = 4.2;       // ...and this fast along the page
+const BOLD_VY = 19.5;      // bold words bounce harder
+const RIM_H = 0.45;        // height of a tray's rim
+const BEHIND = 10, AHEAD = 45;   // only the rows this far behind and ahead of the ball exist as meshes and bodies
+const FALL = 10;           // this far below the row under it, the ball has fallen off the page
+const START_POOL = ['Trebuchet','Moon','Pizza','Volcano','Chess','Honey bee','Bicycle','Jazz','Lighthouse','Octopus',
+  'Coffee','Rainbow','Samurai','Telescope','Chocolate','Dinosaur','Guitar','Pyramid','Tornado','Submarine',
+  'Compass','Origami','Glacier','Typewriter','Kite','Bamboo','Lightning','Castle','Penguin','Saxophone'];
+const NS = /^(File|Image|Media|Help|Wikipedia|WP|Category|Template|Portal|Special|Talk|User|Draft|Module|MOS|Book|TimedText):/i;
+const NOW = new Date();
+const DAY = Math.floor((Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth(), NOW.getUTCDate()) - Date.UTC(2026, 10, 13)) / 864e5) + 1;
+const portrait = () => innerWidth / innerHeight < 0.8;
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+const VERSION = 'v2026-11-15d', LIVES = 3, DIST_PT = 2;   // one point per DIST_PT units the ball travels, times the multiplier
+// Old page widths per orientation (portrait, square-ish, wide); the page is now three times as wide.
+const baseW = () => portrait() ? 10 : innerWidth / innerHeight < 1.5 ? 17 : 24;
+
+// ---------- staying up to date: an old copy of the page (a tab left open, a home-screen shortcut) reloads itself when a newer version is live ----------
+async function checkVersion() {
+  try {
+    const t = await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '');
+    const live = (t.match(/const VERSION = '([^']+)'/) || [])[1];
+    const key = 'linkshot-reloaded-for';
+    if (live && live !== VERSION && sessionStorage.getItem(key) !== live && !(S.level && !S.won)) { sessionStorage.setItem(key, live); location.reload(); }
+  } catch {}
+}
+addEventListener('pageshow', () => checkVersion());
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); });
+
+// ---------- personal records (this browser only) ----------
+function loadRuns() { try { const a = JSON.parse(store.get('linkshot-runs') || '[]'); return Array.isArray(a) ? a.filter(r => r && typeof r.score === 'number') : []; } catch { return []; } }
+function saveRuns(runs) { store.set('linkshot-runs', JSON.stringify(runs.slice(-200))); }
+const bestOf = runs => runs.reduce((m, r) => Math.max(m, r.score), 0);
+function playerId() {
+  let id = store.get('linkshot-player');
+  if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)); store.set('linkshot-player', id); }
+  return id;
+}
+const playerName = () => (store.get('linkshot-name') || '').slice(0, 20);
+
+// ---------- leaderboard: a Supabase project (url and publishable key, both public by design). Until they are set every call returns null and the UI says "Leaderboard offline". ----------
+const LB = {
+  url: 'https://aaxqziaaphktnptmrldh.supabase.co',
+  key: 'sb_publishable_jnvvXVdgiMMfZkFASLUakg_wD0ua7kH',
+  get endpoint() { return this.url && this.key ? this.url : null; },
+  async rpc(fn, body) {
+    if (!this.endpoint) return null;
+    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 5000);
+    try {
+      const r = await fetch(this.url.replace(/\/$/, '') + '/rest/v1/rpc/' + fn, { method: 'POST', signal: ac.signal, keepalive: true,
+        headers: { apikey: this.key, Authorization: 'Bearer ' + this.key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { console.warn('Leaderboard', fn, r.status, (await r.text()).slice(0, 200)); return null; }
+      return await r.json();
+    } catch (e) { console.warn('Leaderboard', fn, e?.message); return null; } finally { clearTimeout(timer); }
+  },
+  // run = { player, name, score, multiplier, articles, target, reached, daily, day, seconds, version } -> { rankAllTime, rankDaily, totalPlayers } | null
+  async submit(run) {
+    if (/^(localhost|127\.|\[::1\])/.test(location.hostname)) return null;     // a local test copy never writes to the real leaderboard
+    const args = { p_player: run.player, p_name: run.name, p_score: Math.round(run.score), p_multiplier: Math.round(run.multiplier),
+      p_articles: Math.round(run.articles), p_target: run.target, p_reached: run.reached, p_daily: !!run.daily, p_day: run.day, p_seconds: run.seconds, p_version: run.version };
+    let d = await this.rpc('linkshot_submit', { ...args, p_ended_on: run.endedOn || null });
+    if (d == null) d = await this.rpc('linkshot_submit', args);                    // database not updated yet: save without the article
+    const x = Array.isArray(d) ? d[0] : d;
+    return x && typeof x === 'object' ? { rankAllTime: +x.rank_all_time || null, rankDaily: +x.rank_daily || null, totalPlayers: +x.total_players || null } : null;
+  },
+  // scope 'daily' | 'alltime' -> [{ name, score }] | null
+  async top(scope, n = 5) {
+    const d = await this.rpc('linkshot_top', { p_scope: scope, p_day: DAY, p_n: n });
+    return Array.isArray(d) ? d.slice(0, n).map(x => ({ name: String(x?.name || 'Anonymous').slice(0, 20), score: +x?.score || 0, endedOn: x?.ended_on ? String(x.ended_on).slice(0, 80) : '' })) : null;
+  },
+};
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// ---------- Wikipedia ----------
+const API = 'https://en.wikipedia.org/w/api.php';
+async function api(params) {
+  const u = new URL(API);
+  for (const [k, v] of Object.entries({ format: 'json', formatversion: 2, origin: '*', ...params })) u.searchParams.set(k, v);
+  const r = await fetch(u);
+  if (!r.ok) throw new Error('Wikipedia answered ' + r.status);
+  return r.json();
+}
+
+const SKIP = 'sup,style,script,link,small,table,figure,audio,.reference,.mw-ref,.IPA,.ext-phonos,.noprint,#coordinates,.geo-inline,.mw-editsection,.Z3988,.mw-empty-elt';
+function linkTitle(a) {
+  const h = a.getAttribute('href') || '';
+  let t;
+  if (h.startsWith('/wiki/')) t = h.slice(6); else if (h.startsWith('./')) t = h.slice(2); else return null;
+  t = t.split('#')[0].split('?')[0];
+  try { t = decodeURIComponent(t); } catch {}
+  t = t.replace(/_/g, ' ').trim();
+  if (!t || NS.test(t) || a.classList.contains('new') || a.classList.contains('external') || a.classList.contains('selflink')) return null;
+  return t;
+}
+const SEED_CAP = { min: 40, max: 66, lo: 44 };     // the words every screen shows; targets are picked from these so a daily is the same on phone and desktop
+const goodP = p => !p.closest('table,figure,.infobox,.hatnote,.navbox,.sidebar,.thumb,.mw-empty-elt,blockquote') && p.textContent.trim().length > 20;
+function pTokens(p, selfTitle) {
+  const tokens = []; let glue = false;
+  const addText = (str, link, bold) => {
+    for (const part of str.split(/(\s+)/)) {
+      if (!part) continue;
+      if (/^\s+$/.test(part)) { glue = false; continue; }
+      if (glue && tokens.length) { const t = tokens[tokens.length - 1]; t.text += part; if (link && !t.link) t.link = link; if (bold) t.bold = true; }
+      else tokens.push({ text: part, link: link || null, bold: !!bold });
+      glue = true;
+    }
+  };
+  const walk = (node, link, bold) => {
+    if (node.nodeType === 3) return addText(node.nodeValue, link, bold);
+    if (node.nodeType !== 1 || node.matches(SKIP)) return;
+    let l = link; const b = bold || node.tagName === 'B' || node.tagName === 'STRONG';
+    if (node.tagName === 'A') { const t = linkTitle(node); if (t && t !== selfTitle) l = t; }
+    for (const c of node.childNodes) walk(c, l, b);
+  };
+  walk(p, null, false);
+  return tokens;
+}
+// The lead section's first words: daily targets are picked from these, so they must not change.
+function leadTokens(html, selfTitle, cap = SEED_CAP) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const out = [];
+  for (const p of [...doc.querySelectorAll('p')].filter(goodP)) {
+    out.push(pTokens(p, selfTitle));
+    const n = out.flat().length, links = out.flat().filter(t => t.link).length;
+    if ((n >= cap.min && links >= 3) || n >= cap.max + 40) break;
+  }
+  let toks = out.flat();
+  if (toks.length > cap.max) {
+    let cut = cap.max;
+    for (let i = cap.max; i >= cap.lo; i--) if (toks[i - 1].link || /[.!?]["')]*$/.test(toks[i - 1].text)) { cut = i; break; }
+    toks = toks.slice(0, cut);
+  }
+  return toks;
+}
+
+// The whole article in reading order: paragraphs, section headings and pictures, up to the reference sections.
+const STOP = /^(see also|references|notes|citations|footnotes|sources|bibliography|further reading|external links)$/i;
+const FIG = 'figure,[typeof~="mw:File/Thumb"]', NOFIG = 'table,.infobox,.navbox,.sidebar,.hatnote,ul,ol,dl';
+function articleBlocks(html, selfTitle) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const root = doc.querySelector('.mw-parser-output') || doc.body, blocks = [], seen = new Set();
+  const fig = f => {
+    const a = f.querySelector('a[href*="File:"]'), img = f.querySelector('img'); if (!a || !img) return;
+    let file = (a.getAttribute('href') || '').split('File:')[1]; if (!file) return;
+    file = file.split(/[?#]/)[0]; try { file = decodeURIComponent(file); } catch {} file = file.replace(/_/g, ' ');
+    if (seen.has(file)) return; seen.add(file);
+    blocks.push({ type: 'fig', file, w: +img.getAttribute('data-file-width') || 0, h: +img.getAttribute('data-file-height') || 0 });
+  };
+  for (const el of root.children) {
+    const hd = el.matches('h2,h3') ? el : el.matches('.mw-heading') ? el.querySelector('h2,h3') : null;
+    if (hd) {
+      const text = hd.textContent.trim().replace(/\s+/g, ' ');
+      if (hd.tagName === 'H2' && STOP.test(text)) break;
+      if (text) blocks.push({ type: 'h', text });
+      continue;
+    }
+    if (el.tagName === 'P') { if (goodP(el)) blocks.push({ type: 'p', tokens: pTokens(el, selfTitle) }); continue; }
+    if (el.matches(FIG)) { fig(el); continue; }
+    if (el.tagName !== 'DIV' || el.matches(NOFIG + ',.mw-heading')) continue;
+    for (const f of el.querySelectorAll(FIG)) if (!f.closest(NOFIG)) fig(f);
+  }
+  return blocks;
+}
+const articleCache = new Map(), seedCache = new Map();
+function getArticle(title) {
+  if (!articleCache.has(title)) articleCache.set(title, (async () => {
+    const d = await api({ action: 'parse', page: title, prop: 'text', redirects: 1, disableeditsection: 1, disabletoc: 1 });
+    if (d.error) throw new Error(d.error.info || 'Could not load ' + title);
+    const canon = d.parse.title, blocks = articleBlocks(d.parse.text, canon);
+    const links = [...new Set(blocks.flatMap(b => b.type === 'p' ? b.tokens.filter(t => t.link).map(t => t.link) : []))];
+    return { title: canon, blocks, links };
+  })().catch(e => { articleCache.delete(title); throw e; }));
+  return articleCache.get(title);
+}
+// Only the lead section, for choosing targets.
+function getSeed(title) {
+  if (!seedCache.has(title)) seedCache.set(title, (async () => {
+    const d = await api({ action: 'parse', page: title, prop: 'text', section: 0, redirects: 1, disableeditsection: 1, disabletoc: 1 });
+    if (d.error) throw new Error(d.error.info || 'Could not load ' + title);
+    const canon = d.parse.title;
+    return { title: canon, seedLinks: [...new Set(leadTokens(d.parse.text, canon, SEED_CAP).filter(t => t.link).map(t => t.link))] };
+  })().catch(e => { seedCache.delete(title); throw e; }));
+  return seedCache.get(title);
+}
+const infoCache = new Map();
+function getInfo(title) {
+  if (!infoCache.has(title)) infoCache.set(title, (async () => {
+    const d = await api({ action: 'query', titles: title, redirects: 1, prop: 'pageimages|description', piprop: 'thumbnail|name', pithumbsize: 640 });
+    const p = d.query?.pages?.[0] || {};
+    const info = { title: p.title || title, desc: p.description || '', thumb: p.thumbnail?.source || null, tw: p.thumbnail?.width, th: p.thumbnail?.height, file: p.pageimage || null, credit: '' };
+    if (info.file) {
+      try {
+        const c = await api({ action: 'query', titles: 'File:' + info.file, prop: 'imageinfo', iiprop: 'extmetadata', iiextmetadatafilter: 'Artist|LicenseShortName' });
+        const m = c.query?.pages?.[0]?.imageinfo?.[0]?.extmetadata || {};
+        const strip = h => new DOMParser().parseFromString(h || '', 'text/html').body.textContent.trim().replace(/\s+/g, ' ');
+        info.credit = [strip(m.Artist?.value).slice(0, 60), strip(m.LicenseShortName?.value)].filter(Boolean).join(', ');
+      } catch {}
+    }
+    return info;
+  })().catch(() => ({ title, desc: '', thumb: null, file: null, credit: '' })));
+  return infoCache.get(title);
+}
+// Every article on Wikipedia:Featured articles, pulled live once per visit; random games start from one.
+// If Wikipedia can't be reached, the saved copy featured.json (made by tools/featured_list.py) stands in.
+let faList = null;
+async function featuredList() {
+  const saved = () => fetch('featured.json').then(r => r.ok ? r.json() : []).then(a => Array.isArray(a) ? a : []).catch(() => []);
+  if (!faList) faList = api({ action: 'parse', page: 'Wikipedia:Featured articles', prop: 'links' })
+    .then(d => (d.parse?.links || []).filter(l => l.ns === 0 && l.exists).map(l => l.title))
+    .then(a => a.length > 1000 ? a : saved()).catch(saved);
+  const a = await faList; if (!a.length) faList = null;   // try again next game if it failed
+  return a;
+}
+// "From today's featured article" on the English Wikipedia Main Page.
+async function featuredTitle() {
+  const d = new Date(), path = `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}`;
+  for (const base of ['https://api.wikimedia.org/feed/v1/wikipedia/en/featured/', 'https://en.wikipedia.org/api/rest_v1/feed/featured/']) {
+    try {
+      const r = await fetch(base + path); if (!r.ok) continue;
+      const t = (await r.json()).tfa; const title = t?.titles?.normalized || t?.title?.replace(/_/g, ' ');
+      if (title) return title;
+    } catch {}
+  }
+  return null;
+}
+// Of several candidate targets, prefer one a player can picture: it has a description and an image and is not a disambiguation page.
+async function bestTarget(cands) {
+  try {
+    const d = await api({ action: 'query', titles: cands.join('|'), redirects: 1, prop: 'pageimages|description|pageprops', ppprop: 'disambiguation', piprop: 'thumbnail', pithumbsize: 80, pilimit: 20 });
+    const norm = {}, red = {}, by = {};
+    (d.query.normalized || []).forEach(n => norm[n.from] = n.to);
+    (d.query.redirects || []).forEach(r => red[r.from] = r.to);
+    (d.query.pages || []).forEach(p => by[p.title] = p);
+    for (const c of cands) {
+      let t = norm[c] || c; t = red[t] || t; const p = by[t];
+      if (p && !p.missing && p.description && p.thumbnail && !(p.pageprops && 'disambiguation' in p.pageprops)) return c;
+    }
+  } catch {}
+  return cands[0];
+}
+
+// The article's own pictures that live on Wikimedia Commons under a free licence: file name -> photo.
+const stripHtml = h => new DOMParser().parseFromString(h || '', 'text/html').body.textContent.trim().replace(/\s+/g, ' ');
+function figurePhotos(art) {
+  return art.photos || (art.photos = (async () => {
+    const figs = art.blocks.filter(b => b.type === 'fig'), out = new Map(), batches = [];
+    for (let i = 0; i < figs.length; i += 50) batches.push(figs.slice(i, i + 50));
+    await Promise.all(batches.map(async list => {
+      try {
+        const d = await api({ action: 'query', titles: list.map(f => 'File:' + f.file).join('|'), prop: 'imageinfo',
+          iiprop: 'url|size|mime|extmetadata', iiurlwidth: 640, iiextmetadatafilter: 'Artist|LicenseShortName' });
+        const norm = {}, by = {};
+        (d.query?.normalized || []).forEach(n => norm[n.from] = n.to);
+        (d.query?.pages || []).forEach(p => by[p.title] = p);
+        for (const f of list) {
+          const key = 'File:' + f.file, p = by[norm[key] || key], ii = p?.imageinfo?.[0];
+          if (!ii || p.imagerepository !== 'shared' || !/^image\/(jpeg|png)$/.test(ii.mime)) continue;
+          const lic = stripHtml(ii.extmetadata?.LicenseShortName?.value); if (!lic || /fair use|non-free/i.test(lic)) continue;
+          out.set(f.file, { file: f.file, url: ii.thumburl || ii.url, w: f.w || ii.width, h: f.h || ii.height,
+            credit: [stripHtml(ii.extmetadata?.Artist?.value).slice(0, 60), lic].filter(Boolean).join(', ') });
+        }
+      } catch {}
+    }));
+    return out;
+  })());
+}
+
+// ---------- sound ----------
+let AC = null, muted = store.get('linkshot-mute') === '1';
+function audioInit() { try { if (!AC) { AC = new (window.AudioContext || window.webkitAudioContext)(); loadSfx(); } else if (AC.state !== 'running') AC.resume(); } catch {} }
+// Recorded sound effects (made with Google's Lyria, see tools/make_sfx.py). Any that are missing fall back to simple tones.
+const buffers = {};
+async function loadSfx() {
+  try {
+    const m = await fetch('sfx/manifest.json').then(r => r.ok ? r.json() : null);
+    for (const n of m?.sounds || []) fetch(`sfx/${n}.mp3`).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+      .then(b => AC.decodeAudioData(b)).then(buf => { buffers[n] = buf; }).catch(() => {});
+  } catch {}
+}
+function play(name, vol = 1, rate = 1) {
+  const b = buffers[name]; if (!b || !AC || muted) return !!b;
+  const src = AC.createBufferSource(), g = AC.createGain();
+  src.buffer = b; src.playbackRate.value = rate; g.gain.value = vol; src.connect(g).connect(AC.destination); src.start();
+  return true;
+}
+function tone(f0, f1, dur, type = 'sine', vol = 0.15, delay = 0) {
+  if (!AC || muted) return;
+  const t = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(AC.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+const vary = () => 0.93 + Math.random() * 0.14;
+const sfx = {
+  fling: p => play('fling', 0.5 + 0.4 * p, 0.9 + 0.3 * p) || tone(320 + 380 * p, 140, 0.16, 'triangle', 0.18),
+  tok: i => play('hop', Math.min(0.25 + i * 0.05, 0.8), 0.8) || tone(170 + Math.min(i, 12) * 14, 90, 0.07, 'sine', Math.min(0.05 + i * 0.02, 0.25)),
+  boing: () => play('boing', 0.7, vary()) || tone(180, 640, 0.22, 'sine', 0.2),
+  link: () => play('link', 0.8) || [660, 880, 1320].forEach((f, i) => tone(f, f, 0.18, 'sine', 0.14, i * 0.07)),
+  fall: () => play('fall', 0.6) || tone(220, 50, 0.45, 'sawtooth', 0.09),
+  hop: () => play('hop', 0.45, vary()) || tone(300, 210, 0.05, 'sine', 0.07),
+  caught: () => play('caught', 0.8) || tone(260, 150, 0.14, 'sine', 0.14),
+  wall: () => play('wall', 0.9) || tone(140, 520, 0.3, 'triangle', 0.2),
+  side: () => play('side', 0.6, vary()) || tone(900, 700, 0.06, 'sine', 0.1),
+  win: () => play('win', 0.9) || [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.26, 'triangle', 0.16, i * 0.11)),
+  power: () => [784, 988, 1319].forEach((f, i) => tone(f, f * 1.02, 0.12, 'triangle', 0.13, i * 0.06)),
+};
+
+// ---------- scene ----------
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b1020);
+scene.fog = new THREE.Fog(0x0b1020, 45, 130);
+const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 400);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x35456e, 1.25));
+const sun = new THREE.DirectionalLight(0xffffff, 1.3); sun.position.set(6, 14, 9); scene.add(sun);
+
+const stars = (() => {
+  const g = new THREE.BufferGeometry(), n = 500, a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { a[i * 3] = (Math.random() - .5) * 400; a[i * 3 + 1] = Math.random() * 200 - 60; a[i * 3 + 2] = -Math.random() * 300 + 60; }
+  g.setAttribute('position', new THREE.BufferAttribute(a, 3));
+  return new THREE.Points(g, new THREE.PointsMaterial({ color: 0x8fa3d6, size: 0.6, fog: false }));
+})();
+scene.add(stars);
+
+// ---------- the sky: faded planets (some ringed), comets and shooting stars in every colour of the rainbow ----------
+// It hangs off the camera, far behind the page, so it fills the empty space round the page and shows through the gaps between words.
+const sky = new THREE.Group(); camera.add(sky); scene.add(camera);
+const SKY_D = 260;
+const skyAt = (nx, ny, d = SKY_D) => { const hh = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * d; return new THREE.Vector3(nx * hh * camera.aspect, ny * hh, -d); };
+function placeSky() { for (const o of sky.children) if (o.userData.n) o.position.copy(skyAt(...o.userData.n)); }
+const skyRnd = (a, b) => a + Math.random() * (b - a);
+const skyDir = (az, el, d) => new THREE.Vector3(Math.sin(az) * Math.cos(el) * d, Math.sin(el) * d, -Math.cos(az) * Math.cos(el) * d);
+const hsl = (h, s, l) => new THREE.Color().setHSL(((h % 1) + 1) % 1, s, l);
+for (let i = 0; i < 9; i++) {                                   // nine planets round the rainbow, mostly ahead and above
+  const h = i / 9 + skyRnd(-0.03, 0.03), r = skyRnd(5, 13);
+  const n = [((i % 3) - 1) * 0.62 + skyRnd(-0.25, 0.25), (Math.floor(i / 3) - 1) * 0.62 + skyRnd(-0.2, 0.2)];   // spread over the whole view
+  const pl = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 16),
+    new THREE.MeshLambertMaterial({ color: hsl(h, 0.6, 0.45), emissive: hsl(h, 0.6, 0.14), transparent: true, opacity: 0.6, fog: false, depthWrite: false }));
+  pl.userData.n = n; sky.add(pl);
+  if (i % 2 === 0) {                                            // every other planet has a ring, tilted its own way
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r * 1.35, r * 2.1, 48),
+      new THREE.MeshBasicMaterial({ color: hsl(h + 0.15, 0.4, 0.55), transparent: true, opacity: 0.22, side: THREE.DoubleSide, fog: false, depthWrite: false }));
+    ring.userData.n = n; ring.rotation.set(skyRnd(-1.3, -0.4), skyRnd(-0.6, 0.6), skyRnd(-0.5, 0.5)); sky.add(ring);
+  }
+}
+// Shooting stars: quick thin streaks. Comets: a soft head and tail drifting slowly across.
+const streakGeo = new THREE.BoxGeometry(0.12, 0.12, 1), tailGeo = new THREE.ConeGeometry(1, 1, 16, 1, true);
+tailGeo.rotateX(Math.PI / 2);                                    // the tail's length runs along z
+const flyers = [];
+function launch(kind) {
+  const h = Math.random(), comet = kind === 'comet';
+  const from = skyAt(skyRnd(-0.9, 0.9), skyRnd(0, 0.95), SKY_D - 20);
+  const vel = new THREE.Vector3(skyRnd(-1, 1), skyRnd(-0.7, -0.15), 0).normalize().multiplyScalar(comet ? skyRnd(10, 18) : skyRnd(140, 200));
+  const g = new THREE.Group(); g.position.copy(from); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), vel.clone().normalize());   // point along its path, in the sky's own frame sky.add(g);
+  const mats = [];
+  if (comet) {
+    const m1 = new THREE.MeshBasicMaterial({ color: hsl(h, 0.5, 0.75), transparent: true, opacity: 0, fog: false, depthWrite: false });
+    const m2 = new THREE.MeshBasicMaterial({ color: hsl(h, 0.5, 0.6), transparent: true, opacity: 0, fog: false, depthWrite: false });
+    const head = new THREE.Mesh(new THREE.SphereGeometry(1.1, 12, 8), m1); g.add(head);
+    const tail = new THREE.Mesh(tailGeo, m2); tail.scale.set(1.1, 1.1, 24); tail.position.z = -12; g.add(tail);
+    mats.push([m1, 0.55], [m2, 0.2]);
+  } else {
+    const m = new THREE.MeshBasicMaterial({ color: hsl(h, 0.45, 0.8), transparent: true, opacity: 0, fog: false, depthWrite: false });
+    const st = new THREE.Mesh(streakGeo, m); st.scale.z = 14; st.position.z = -7; g.add(st);
+    mats.push([m, 0.6]);
+  }
+  flyers.push({ g, vel, mats, age: 0, life: comet ? skyRnd(10, 16) : skyRnd(0.6, 1.1) });
+}
+let nextStreak = skyRnd(1, 4), nextComet = skyRnd(3, 10);
+function animateSky(dt) {
+  if ((nextStreak -= dt) <= 0) { launch('streak'); nextStreak = skyRnd(1.5, 5); }
+  if ((nextComet -= dt) <= 0) { launch('comet'); nextComet = skyRnd(14, 28); }
+  for (let i = flyers.length - 1; i >= 0; i--) {
+    const f = flyers[i]; f.age += dt; f.g.position.addScaledVector(f.vel, dt);
+    const t = f.age / f.life, fade = Math.min(1, t * 6, (1 - t) * 4);         // fade in, hold, fade out
+    for (const [m, o] of f.mats) m.opacity = Math.max(0, fade) * o;
+    if (t >= 1) { sky.remove(f.g); f.g.traverse(o => { if (o.geometry && o.geometry !== streakGeo && o.geometry !== tailGeo) o.geometry.dispose(); }); for (const [m] of f.mats) m.dispose(); flyers.splice(i, 1); }
+  }
+}
+
+const std = o => new THREE.MeshStandardMaterial(o);
+const MAT = {
+  plain: [std({ color: 0xf4f1e8, roughness: .9 }), std({ color: 0x202122, roughness: .6 })],
+  link: [std({ color: 0xcfe0ff, roughness: .6, emissive: 0x2b5fd9, emissiveIntensity: .35 }), std({ color: 0x2450b8, roughness: .5 })],
+  goal: [std({ color: 0xffe9a8, roughness: .5, emissive: 0xffb400, emissiveIntensity: .55 }), std({ color: 0x7a4b00, roughness: .5 })],
+  bounce: [std({ color: 0xc8f5d6, roughness: .6, emissive: 0x1f9d55, emissiveIntensity: .3 }), std({ color: 0x14532d, roughness: .5 })],
+  title: [std({ color: 0x1d2640, roughness: .7 }), std({ color: 0xffcf4a, roughness: .4, emissive: 0x5a4300 })],
+  off: [std({ color: 0x23262f, roughness: .95 }), std({ color: 0x3d4250, roughness: .9 })],
+  charged: [std({ color: 0xdcc8ff, roughness: .5, emissive: 0x7b3fe4, emissiveIntensity: .6 }), std({ color: 0x3b1a78, roughness: .5 })],   // a link already collected on this page
+};
+const MATX = { wood: std({ color: 0x3a2a1c, roughness: .9 }), frame: std({ color: 0xc9a25a, roughness: .45, metalness: .3 }),
+  wall: std({ color: 0x7a2b3a, roughness: .5, emissive: 0x4a0f1c, emissiveIntensity: .5 }),
+  glass: new THREE.MeshStandardMaterial({ color: 0x9fc4ff, transparent: true, opacity: 0.16, roughness: .2, depthWrite: false, side: THREE.DoubleSide }),
+  rail: std({ color: 0x6f8fd0, roughness: .5, emissive: 0x23386b, emissiveIntensity: .6 }) };
+
+const ballGeo = new THREE.SphereGeometry(R, 32, 24);
+const ballPos = ballGeo.attributes.position;
+const ballColorAttr = new THREE.BufferAttribute(new Float32Array(ballPos.count * 3), 3);
+ballGeo.setAttribute('color', ballColorAttr);
+const ballDirs = new Float32Array(ballPos.count * 3);
+for (let i = 0; i < ballPos.count; i++) {
+  const x = ballPos.getX(i), y = ballPos.getY(i), z = ballPos.getZ(i), l = Math.hypot(x, y, z) || 1;
+  ballDirs[i * 3] = x / l; ballDirs[i * 3 + 1] = y / l; ballDirs[i * 3 + 2] = z / l;
+}
+const ballMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, metalness: 0.25, roughness: 0.28, transparent: true, opacity: 0.86, clearcoat: 0.8, clearcoatRoughness: 0.15, iridescence: 0.25, iridescenceIOR: 1.4 });
+ballMat.onBeforeCompile = sh => {             // the blobs glow from inside, like a lava lamp, instead of only reflecting the dark scene
+  sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += vColor.rgb * 0.55;');
+};
+const ballMesh = new THREE.Mesh(ballGeo, ballMat);
+// Lava lamp: a few soft blobs of colour wander over the ball, swell and shrink, change colour slowly, and melt into each other.
+const rnd = (a, b) => a + Math.random() * (b - a);
+const blobs = Array.from({ length: 5 }, () => {
+  const v = [rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)], l = Math.hypot(...v) || 1;
+  return { c: v.map(x => x / l), vel: [0, 0, 0], size: rnd(2.5, 6), sizeV: 0, hue: Math.random(), hueV: rnd(-0.05, 0.05) };
+});
+const ballCol = new THREE.Color(), blobCol = new THREE.Color(), lampBase = new THREE.Color(0x2a0a3a);
+function paintBall(dt) {
+  for (const b of blobs) {                                   // every blob drifts on its own random walk
+    for (let k = 0; k < 3; k++) { b.vel[k] += rnd(-1, 1) * 1.6 * dt; b.vel[k] *= 1 - 0.6 * dt; b.c[k] += b.vel[k] * dt; }
+    const l = Math.hypot(...b.c) || 1; b.c = b.c.map(x => x / l);
+    b.sizeV += rnd(-1, 1) * 4 * dt; b.sizeV *= 1 - 0.8 * dt; b.size = Math.max(2, Math.min(9, b.size + b.sizeV * dt));
+    b.hueV += rnd(-1, 1) * 0.05 * dt; b.hueV = Math.max(-0.08, Math.min(0.08, b.hueV)); b.hue = (b.hue + b.hueV * dt + 1) % 1;
+  }
+  const arr = ballColorAttr.array;
+  for (let i = 0, n = ballPos.count; i < n; i++) {
+    const x = ballDirs[i * 3], y = ballDirs[i * 3 + 1], z = ballDirs[i * 3 + 2];
+    let wsum = 0; ballCol.setRGB(0, 0, 0);
+    for (const b of blobs) {                                 // soft falloff from each blob's centre, so neighbours melt together
+      const w = Math.exp(-b.size * (1 - (x * b.c[0] + y * b.c[1] + z * b.c[2])) * 1.4);
+      blobCol.setHSL(b.hue, 1, 0.56); ballCol.r += blobCol.r * w; ballCol.g += blobCol.g * w; ballCol.b += blobCol.b * w; wsum += w;
+    }
+    const f = Math.min(1, wsum * 1.6), inv = wsum > 0 ? 1 / wsum : 0;
+    arr[i * 3] = lampBase.r + (ballCol.r * inv - lampBase.r) * f;
+    arr[i * 3 + 1] = lampBase.g + (ballCol.g * inv - lampBase.g) * f;
+    arr[i * 3 + 2] = lampBase.b + (ballCol.b * inv - lampBase.b) * f;
+  }
+  ballColorAttr.needsUpdate = true;
+}
+paintBall(0.016);
+scene.add(ballMesh);
+const shadow = new THREE.Mesh(new THREE.CircleGeometry(R * 1.05, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .32, depthWrite: false }));
+shadow.rotation.x = -Math.PI / 2; scene.add(shadow);
+const dots = Array.from({ length: 22 }, (_, i) => {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 - i * 0.03 }));
+  m.visible = false; scene.add(m); return m;
+});
+const ring = new THREE.Mesh(new THREE.RingGeometry(R * 0.9, R * 1.35, 28), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .95, depthTest: false, side: THREE.DoubleSide }));
+ring.rotation.x = -Math.PI / 2; ring.renderOrder = 5; ring.visible = false; scene.add(ring);
+// slingshot: two posts beside the ball and elastic bands that stretch to it
+const sling = new THREE.Group(); sling.visible = false; scene.add(sling);
+const postGeo = new THREE.CylinderGeometry(0.07, 0.1, 1.15, 10), postMat = std({ color: 0x9a6a3a, roughness: .8 });
+[-1, 1].forEach(sd => { const m = new THREE.Mesh(postGeo, postMat); m.position.set(sd * 0.78, 0.175, 0); sling.add(m); });
+const bandMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
+const bandMeshes = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 8), bandMat); m.visible = false; scene.add(m); return m; });
+const UP = new THREE.Vector3(0, 1, 0), tA = new THREE.Vector3(), tD = new THREE.Vector3();
+function setBand(m, ax, ay, az, to) {
+  tA.set(ax, ay, az); tD.subVectors(to, tA); const len = Math.max(tD.length(), 0.001);
+  m.position.copy(tA).addScaledVector(tD, 0.5); m.quaternion.setFromUnitVectors(UP, tD.divideScalar(len)); m.scale.set(1, len, 1); m.visible = true;
+}
+
+// ---------- physics ----------
+// Only the balls move, so only pairs of a ball (dynamic) with a level body (static) are worth testing (the naive broadphase
+// tests every pair of tiles). Two dynamic bodies are never paired, so extra balls never hit each other or the main ball.
+class BallBroadphase extends CANNON.Broadphase {
+  constructor() { super(); this.useBoundingBoxes = true; }
+  collisionPairs(world, p1, p2) {
+    const bs = world.bodies;
+    for (const a of bs) if (a.type === CANNON.Body.DYNAMIC)
+      for (const b of bs) if (b !== a && b.type !== CANNON.Body.DYNAMIC && this.needBroadphaseCollision(a, b)) this.intersectionTest(a, b, p1, p2);
+  }
+  aabbQuery(world, aabb, result = []) {
+    for (const b of world.bodies) { if (b.aabbNeedsUpdate) b.updateAABB(); if (b.aabb.overlaps(aabb)) result.push(b); }
+    return result;
+  }
+}
+const world = new CANNON.World({ gravity: new CANNON.Vec3(0, GRAV, 0), broadphase: new BallBroadphase() });
+world.allowSleep = true;
+const matBall = new CANNON.Material('ball'), matTile = new CANNON.Material('tile');
+const ballTile = new CANNON.ContactMaterial(matBall, matTile, { friction: 0.55, restitution: 0.42 });   // restitution follows S.bounce
+world.addContactMaterial(ballTile);
+const ball = new CANNON.Body({ mass: 1, shape: new CANNON.Sphere(R), material: matBall, linearDamping: 0.12, angularDamping: 0.55,
+  collisionFilterGroup: 2, collisionFilterMask: 1 });
+ball.allowSleep = true; ball.sleepSpeedLimit = 0.3; ball.sleepTimeLimit = 0.5;
+world.addBody(ball);
+
+// ---------- game state ----------
+const S = { font: null, glyphs: null, level: null, mode: 'random', rng: Math.random, target: null, targetRaw: null, parHops: 2,
+  flings: 0, hops: 0, path: [], history: [], lastSafe: new CANNON.Vec3(), lastContact: 0, levelAt: 0,
+  pendingLink: null, photoPts: new Set(), hit: null, side: 0, sideV: 0, dir: 1, bowl: null, flungAt: 0, linkRest: 0, busy: false, aiming: null, won: false,
+  W: baseW() * 1.5, W0: baseW(), topped: new Set(), shareText: '', load: null,
+  score: 0, mult: 1, lives: LIVES, visited: new Set(), off: new Map(), runAt: 0, bounce: 1, multi: 0, pu: new Set() };
+const pulsing = new Set();
+window.__game = { S, ball, ballMesh, world, DAY, goTo, LB, endRun: ok => endRun(ok), loadRuns, fling: (vx, vy, vz) => doFling(new CANNON.Vec3(vx, vy, vz)), predict: v => predict(v),
+  stats: () => { const L = S.level; return L && { rows: L.rows, words: L.nWords, trays: L.nTrays, heads: L.nHeads, liveUnits: L.liveUnits.size,
+    bodies: world.bodies.length, meshes: L.group.children.length, textGeos: textGeos.size, load: S.load }; } };
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let toastTimer, cardTimer;
+function toast(msg, ms = 1800) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), ms); }
+function hud() {
+  $('score').textContent = S.score; $('mult').textContent = '×' + S.mult;
+  $('lives').textContent = '♥'.repeat(Math.max(0, S.lives)) + '♡'.repeat(Math.max(0, LIVES - S.lives));
+}
+// Floating "+N" above a word, drawn in screen space and drifting up.
+const pops = [], popV = new THREE.Vector3();
+function pop(text, x, y, z) {
+  const el = document.createElement('div'); el.className = 'pop'; el.textContent = text; document.body.appendChild(el);
+  pops.push({ el, x, y, z, t: performance.now() });
+}
+function clearPops() { for (const q of pops) q.el.remove(); pops.length = 0; }
+let bumpTimer;
+// The first landing on a word that is not a link switches its light off: one point per letter, times the multiplier.
+const linksNeeded = () => Math.max(1, S.visited.size);   // the n-th article of a run needs n links landed on before one takes you away
+function award(base, x, y, z) {
+  if (S.won || !base) return;
+  const n = base * S.mult; S.score += n; hud(); pop('+' + n, x, y, z);
+  const sc = $('score'); sc.classList.add('bump'); clearTimeout(bumpTimer); bumpTimer = setTimeout(() => sc.classList.remove('bump'), 250);
+}
+function lightOff(b) {
+  const L = S.level; if (!L || b.off) return;
+  b.off = true; b.tile.material = MAT.off[0]; b.letters.material = MAT.off[1]; L.offSet.add(b.wi);
+  const n = (b.text.match(/[\p{L}\p{N}]/gu) || []).length * S.mult; if (!n) return;
+  S.score += n; hud(); pop('+' + n, b.position.x, b.position.y + 0.8, b.position.z);
+  const sc = $('score'); sc.classList.add('bump'); clearTimeout(bumpTimer); bumpTimer = setTimeout(() => sc.classList.remove('bump'), 250);
+}
+
+// ---------- power-ups ----------
+// About one ordinary word in 28 carries a power-up, picked from the article title and the word's place in it, so the daily
+// challenge has the same ones for everyone. Each is collected once per run (remembered by "title|wi").
+const fnv = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
+function puType(key) {
+  if (fnv(key) % 28) return null;
+  const r = fnv(key + '#pu') % 100;
+  return r < 40 ? 'life' : 'multi';               // (the bounciness power-up was removed at the owner's request)
+}
+function puTex(type) {                     // a small round badge drawn on a canvas
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  g.lineJoin = g.lineCap = 'round'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const label = (t, y, px) => { g.font = `900 ${px}px system-ui, sans-serif`; g.lineWidth = 7; g.strokeStyle = 'rgba(0,0,0,.45)'; g.strokeText(t, 64, y); g.fillStyle = '#fff'; g.fillText(t, 64, y); };
+  if (type === 'life') {
+    g.beginPath(); g.moveTo(64, 118); g.bezierCurveTo(8, 80, 2, 40, 22, 20); g.bezierCurveTo(40, 4, 60, 12, 64, 32);
+    g.bezierCurveTo(68, 12, 88, 4, 106, 20); g.bezierCurveTo(126, 40, 120, 80, 64, 118); g.closePath();
+    g.fillStyle = '#ff2d55'; g.fill(); g.lineWidth = 6; g.strokeStyle = '#fff'; g.stroke();
+    label('+1', 62, 46);
+  } else {
+    g.beginPath(); g.arc(64, 64, 58, 0, Math.PI * 2); g.fillStyle = type === 'multi' ? '#6a3df0' : '#21b354'; g.fill();
+    g.lineWidth = 6; g.strokeStyle = '#fff'; g.stroke();
+    if (type === 'multi') {
+      [[40, 50, '#ffcf4a'], [64, 34, '#6ea0ff'], [88, 50, '#ff6fa8']].forEach(([x, y, col]) => { g.beginPath(); g.arc(x, y, 14, 0, Math.PI * 2); g.fillStyle = col; g.fill(); g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke(); });
+      label('×3', 90, 40);
+    } else {                               // a spring with an arrow shooting up out of it
+      g.strokeStyle = '#fff'; g.lineWidth = 7; g.beginPath(); g.moveTo(42, 104);
+      for (let i = 0; i < 5; i++) g.lineTo(i % 2 ? 42 : 86, 96 - i * 8);
+      g.lineTo(64, 60); g.stroke();
+      g.beginPath(); g.moveTo(64, 64); g.lineTo(64, 30); g.stroke();
+      g.beginPath(); g.moveTo(44, 40); g.lineTo(64, 16); g.lineTo(84, 40); g.closePath(); g.fillStyle = '#fff'; g.fill();
+    }
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+// One geometry, texture and material per type, shared by every badge and kept for the life of the page: building and dropping
+// a row only adds and removes meshes, so nothing leaks.
+const PU_GEO = new THREE.PlaneGeometry(1.8, 1.8);
+const PU_MAT = Object.fromEntries(['life', 'multi', 'bounce'].map(k => [k, new THREE.MeshBasicMaterial({ map: puTex(k), transparent: true, side: THREE.DoubleSide, depthWrite: false })]));
+const badges = new Set();                  // tile bodies whose badge is showing
+function collectPU(b) {
+  const pu = b.pu; if (!pu || S.won || S.pu.has(pu.key)) return;
+  S.pu.add(pu.key); b.pu = null; badges.delete(b); S.level?.group.remove(pu.mesh); sfx.power();
+  const { x, y, z } = pu.mesh.position;
+  if (pu.type === 'life') { S.lives++; hud(); pop('♥ +1', x, y, z); toast(`Extra life! ${S.lives} lives`, 1600); }
+  else if (pu.type === 'multi') { S.multi += 2; pop('×3', x, y, z); toast(`Next shot: +${S.multi} balls`, 1800); }
+  else {
+    const was = S.bounce; setBounce(S.bounce + 0.1); pop('↑', x, y, z);
+    toast(S.bounce > was ? `Bouncier ×${S.bounce.toFixed(2)}` : `Already at the bounciest: ×${S.bounce.toFixed(2)}`, 1600);
+  }
+}
+function setBounce(k) { S.bounce = Math.round(Math.min(1.15, Math.max(0.85, k)) * 100) / 100; ballTile.restitution = 0.42 * S.bounce; }
+setBounce(1);
+
+// ---------- extra balls ----------
+// Thrown with the main ball after a multi-ball pickup. They score words for five bounces, then fade out. They never teleport,
+// never score distance, wall or photo points, and never cost lives: the rest of the game only ever looks at the main ball.
+const extras = [];
+const EXTRA_BOUNCES = 5, EXTRA_LIFE = 15000, EXTRA_FADE = 500, EXTRA_OP = 0.55;
+Object.assign(window.__game, { ballTile, extras, badges, puType, collectPU, setBounce, spawnExtras });
+function spawnExtras(n, v) {
+  const m = Math.ceil(n / 2), sp = v.length();
+  for (let i = 0; i < n; i++) {
+    const side = i % 2 ? 1 : -1, j = Math.floor(i / 2);
+    const ang = side * (m > 1 ? 7 + 3 * j / (m - 1) : 8) * Math.PI / 180, k = 1 + side * (j % 2 ? -0.08 : 0.08);
+    const c = Math.cos(ang), s = Math.sin(ang);
+    const body = new CANNON.Body({ mass: 1, shape: new CANNON.Sphere(R), material: matBall, linearDamping: 0.12, angularDamping: 0.55,
+      collisionFilterGroup: 2, collisionFilterMask: 1 });
+    body.allowSleep = false; body.position.copy(ball.position);
+    body.velocity.set((v.x * c - v.z * s) * k, v.y * k, (v.x * s + v.z * c) * k);
+    body.angularVelocity.set(body.velocity.z * 1.2, 0, -body.velocity.x * 1.2);
+    const mat = ballMat.clone(); mat.onBeforeCompile = ballMat.onBeforeCompile; mat.opacity = EXTRA_OP;
+    const mesh = new THREE.Mesh(ballGeo, mat); mesh.position.copy(body.position); scene.add(mesh);
+    const x = { body, mesh, mat, bounces: 0, born: performance.now(), fade: 0, hit: null, dir: 1 };
+    body.addEventListener('collide', e => {
+      const b = e.body; if (b.pu) collectPU(b);
+      if (x.fade || !S.level) return;
+      if (b.tile && !b.link) { b.pulse = 1; b.seed = Math.random() * 6.28; pulsing.add(b); }
+      if (b.kind === 'wall') x.dir = -1;                           // turned round by the top wall, but no points
+      else if ((b.kind === 'plain' || b.kind === 'bounce') && !x.hit && x.bounces < EXTRA_BOUNCES && body.position.y > b.position.y + b.shapes[0].halfExtents.y) {
+        x.hit = b.kind; x.bounces++;
+        if (!b.off && !S.won && !S.busy) lightOff(b);
+      }
+    });
+    world.addBody(body); extras.push(x);
+  }
+}
+function dropExtra(x) {
+  world.removeBody(x.body); scene.remove(x.mesh); x.mat.dispose();
+  const i = extras.indexOf(x); if (i >= 0) extras.splice(i, 1);
+}
+function clearExtras() { for (const x of [...extras]) dropExtra(x); }
+function stepExtras(now) {
+  for (const x of [...extras]) {
+    const v = x.body.velocity, p = x.body.position;
+    if (x.hit) {                                                   // the same hop as the main ball, up the page
+      const h = x.hit; x.hit = null;
+      v.set(v.x * 0.85, (h === 'bounce' ? BOLD_VY : HOP_VY) * S.bounce, -x.dir * (h === 'bounce' ? HOP_FWD * 1.3 : HOP_FWD));
+    }
+    const s = surfAt(S.level, p.z);
+    if (s != null && p.y < s - FALL) { dropExtra(x); continue; }
+    if (!x.fade && (x.bounces >= EXTRA_BOUNCES || now - x.born > EXTRA_LIFE)) x.fade = now;
+    if (x.fade) {
+      const f = (now - x.fade) / EXTRA_FADE;
+      if (f >= 1) { dropExtra(x); continue; }
+      x.mat.opacity = EXTRA_OP * (1 - f);
+    }
+    x.mesh.position.copy(p); x.mesh.quaternion.copy(x.body.quaternion);
+  }
+}
+function showCard(title) {
+  $('ctitle').textContent = title; $('cdesc').textContent = 'Loading…'; $('cimg').removeAttribute('src'); $('card').hidden = false;
+  clearTimeout(cardTimer); cardTimer = setTimeout(() => $('card').hidden = true, 4200);
+  getInfo(title).then(i => {
+    if ($('ctitle').textContent !== title) return;
+    $('ctitle').textContent = i.title; $('cdesc').textContent = i.desc || 'No short description';
+    if (i.thumb) $('cimg').src = i.thumb;
+  });
+}
+
+function clean(s) {
+  s = s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[“”„]/g, '"').replace(/[‘’]/g, "'").replace(/[–—−]/g, '-').replace(/…/g, '...');
+  return [...s].filter(c => S.glyphs[c]).join('');
+}
+
+// Shared geometry: every box is a scaled unit cube, every picture a scaled unit square, and each distinct word's letters are made once.
+const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1), UNIT_PLANE = new THREE.PlaneGeometry(1, 1);
+// A link's dent: the tile's top is a collar with an oval hole, and under the hole a smooth curved dish, both in the tile's own colour.
+const DISH = new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);   // lower half of a sphere: a bowl, open at the top
+const collarCache = new Map(), dblCache = new Map();
+function collarGeo(w, d, h) {
+  const k = w.toFixed(2); let g = collarCache.get(k); if (g) return g;
+  const sh = new THREE.Shape(); sh.moveTo(-w / 2, -d / 2); sh.lineTo(w / 2, -d / 2); sh.lineTo(w / 2, d / 2); sh.lineTo(-w / 2, d / 2); sh.lineTo(-w / 2, -d / 2);
+  const hole = new THREE.Path(); hole.absellipse(0, 0, w / 2 - 0.1, d / 2 - 0.1, 0, Math.PI * 2, true); sh.holes.push(hole);
+  g = new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: false, curveSegments: 24 }); g.rotateX(-Math.PI / 2);
+  collarCache.set(k, g); return g;
+}
+const dbl = m => { let d = dblCache.get(m); if (!d) { d = m.clone(); d.side = THREE.DoubleSide; dblCache.set(m, d); } return d; };   // the dish is seen from inside
+const textGeos = new Map();
+function textGeo(text) {
+  let e = textGeos.get(text);
+  if (!e) {
+    const geo = new TextGeometry(text, { font: S.font, size: FS, depth: LETTER, curveSegments: 3, bevelEnabled: false });
+    geo.translate(PAD, 0, 0); geo.rotateX(-Math.PI / 2); e = { geo, n: 0 }; textGeos.set(text, e);
+  }
+  e.n++; return e.geo;
+}
+function dropText(text) { const e = textGeos.get(text); if (e && --e.n <= 0) { e.geo.dispose(); textGeos.delete(text); } }
+// A word's width from the font's glyph advances: no geometry needed to lay out a whole article.
+const textW = text => { let w = 0; for (const c of text) w += S.glyphs[c]?.ha || 0; return w * FS / S.font.data.resolution; };
+
+const rowY = r => r * STEP_Y, rowZ = r => -r * STEP_Z;                 // baseline of row r
+const frontZ = r => rowZ(r) - 0.34 * FS + LH / 2;                      // near edge of row r
+function rowAt(L, z) { return Math.min(L.rMax, Math.max(L.rMin, Math.round(-(z + 0.34 * FS) / STEP_Z))); }
+const surfAt = (L, z) => L.surf[rowAt(L, z) - L.rMin];
+
+function loadPic(mesh, url) {
+  new THREE.TextureLoader().setCrossOrigin('anonymous').load(url, tex => {
+    if (mesh.userData.dead) { tex.dispose(); return; }
+    tex.colorSpace = THREE.SRGBColorSpace;
+    mesh.material.map = tex; mesh.material.color.set(0xffffff); mesh.material.needsUpdate = true;
+  });
+}
+
+// Lay the whole article out as rows, without building anything yet.
+function layoutLevel(article, photos, W, W0 = W / 1.5) {
+  // The words that can be drawn, each with its tile width.
+  const prep = items => {
+    const out = [];
+    for (const wd of items) {
+      const text = clean(wd.text); if (!text || /^[^A-Za-z0-9]+$/.test(text)) continue;
+      const w = textW(text); if (!(w > 0)) continue;
+      out.push({ text, full: w + 2 * PAD, kind: wd.kind, link: wd.link || null });
+    }
+    return out;
+  };
+  const lineUp = (items, w) => {
+    const lines = [[]]; let x = 0;
+    for (const it of prep(items)) {
+      if (x > 0 && x + it.full > w) { lines.push([]); x = 0; }
+      lines[lines.length - 1].push({ ...it, x });
+      x += it.full + GAPX;
+    }
+    return lines.filter(l => l.length);
+  };
+  const end = l => l[l.length - 1].x + l[l.length - 1].full;
+  const centre = l => { const off = (W - end(l)) / 2; l.forEach(it => it.x += off); return l; };
+  // Widen the word tiles so each line runs from wall to wall (or tray to wall). The only holes left are the gaps between words.
+  const widen = (l, w) => { const add = (w - end(l)) / l.length; l.forEach((it, i) => { it.x += i * add; it.full += add; it.shift = add / 2; }); return l; };
+  const heading = text => lineUp(text.split(/\s+/).map(t => ({ text: t, kind: 'title' })), W).map(centre);
+  const units = [];
+  const tl = heading(article.title); if (!tl.length) tl.push([]);
+  tl.forEach((l, i) => units.push({ type: 'slab', r0: i - tl.length, r1: i - tl.length, items: l, kerb: i === 0 }));
+  let r = 0, pend = [], nTrays = 0, nWords = 0, nHeads = 0;
+  // A tray stands against one wall; the text flows beside it, in the narrower space, until r passes the tray's last row.
+  let side = null;                     // { r1, w, x0 } of the tray the text is flowing beside
+  const width = () => side && r <= side.r1 ? side.w : W;
+  const pastTray = () => { if (side && r <= side.r1) r = side.r1 + 1; side = null; };
+  // Each word gets its index in reading order (independent of the page width), which is how switched-off words are remembered.
+  const flush = () => {
+    let line = [], x = 0;
+    const emit = () => {                 // an empty line beside a tray leaves that row empty
+      if (line.length) {
+        const w = width(), x0 = w < W ? side.x0 : 0;
+        line.forEach(it => it.wi = nWords++); widen(line, w); if (x0) line.forEach(it => it.x += x0);
+        units.push({ type: 'words', r0: r, r1: r, items: line });
+      }
+      r++; line = []; x = 0;
+    };
+    for (let it of prep(pend)) {
+      for (;;) {
+        const w = width();
+        if (x + it.full <= w || (x === 0 && w === W)) break;   // it fits (a full-width line takes any word)
+        if (x === 0) { it = { ...it, sq: w / it.full, full: w }; break; }   // too wide for the space beside a picture: squeeze it in rather than leave rows empty
+        emit();
+      }
+      line.push({ ...it, x }); x += it.full + GAPX;
+    }
+    if (line.length) emit();
+    pend = [];
+  };
+  // Every usable picture in the article, spread evenly through the text (not where the article happens to bunch them).
+  const figs = article.blocks.filter(b => b.type === 'fig').map(b => photos.get(b.file)).filter(ph => ph && ph.w > 0 && ph.h > 0);
+  const total = article.blocks.reduce((n, b) => n + (b.type === 'p' ? b.tokens.length : 0), 0);
+  let seen = 0, nextFig = 0;
+  const due = () => nextFig < figs.length && seen >= Math.round((nextFig + 1) * total / (figs.length + 1));
+  const placeTray = photo => {
+    flush(); pastTray();
+    // The picture keeps its own shape: as wide as the tray allows, unless that makes it too deep.
+    const t = 0.14, a = photo.w / photo.h, maxD = 10;
+    let iw = W0 * 0.8 - 4 * t, id = iw / a;                // as large as on the old, narrower page
+    if (id > maxD) { iw *= maxD / id; id = maxD; }
+    const bw = iw + 4 * t, D = id + 4 * t, n = Math.ceil(D / STEP_Z);
+    // Against the left wall, then the right, in turn. r stays put: the next words flow beside it.
+    const left = nTrays % 2 === 0;
+    units.push({ type: 'tray', r0: r, r1: r + n - 1, photo, bw, D, iw, id, cx: (left ? -1 : 1) * (W - bw) / 2 });
+    side = { r1: r + n - 1, w: W - bw - 1.2, x0: left ? bw + 1.2 : 0 };
+    nTrays++;
+  };
+  for (const b of article.blocks) {
+    if (b.type === 'p') {
+      for (const t of b.tokens) {
+        pend.push({ text: t.text, link: t.link,
+          kind: t.link ? ((t.link === S.target || t.link === S.targetRaw) ? 'goal' : 'link') : t.bold ? 'bounce' : 'plain' });
+        seen++;
+        if (due() && /[.!?;:,]["')]*$/.test(t.text)) placeTray(figs[nextFig++]);   // at the next pause in the sentence
+      }
+    } else if (b.type === 'h') {
+      flush(); pastTray(); const hl = heading(b.text); if (hl.length) nHeads++;
+      for (const l of hl) { units.push({ type: 'slab', r0: r, r1: r, items: l }); r++; }
+      while (due()) placeTray(figs[nextFig++]);
+    }
+  }
+  while (nextFig < figs.length) placeTray(figs[nextFig++]);          // any left over (very short text) go at the end
+  flush(); pastTray();
+  const rMin = -tl.length, rMax = Math.max(r - 1, -1), unitAt = [], surf = [];
+  units.forEach((u, i) => { for (let q = u.r0; q <= u.r1; q++) { unitAt[q - rMin] = i; surf[q - rMin] = rowY(u.r0) + LETTER; } });
+  return { units, unitAt, surf, rMin, rMax, rows: r, nWords, nTrays, nHeads };
+}
+
+function buildUnit(L, u) {
+  if (u.live) return;
+  const W = L.W, live = u.live = { objs: [], bods: [], texts: [], mats: [], bowl: null };
+  L.liveUnits.add(u);
+  const add = (geo, mat, x, y, z, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); L.group.add(m); live.objs.push(m); return m; };
+  const box = (hx, hy, hz, x, y, z, mat) => add(UNIT_BOX, mat, x, y, z, hx * 2, hy * 2, hz * 2);
+  const body = (hx, hy, hz, x, y, z, kind) => {
+    const b = new CANNON.Body({ mass: 0, material: matTile, shape: new CANNON.Box(new CANNON.Vec3(hx, hy, hz)) });
+    b.position.set(x, y, z); b.aabbNeedsUpdate = true; b.updateAABB(); b.kind = kind; b.link = null;
+    world.addBody(b); L.bodies.push(b); live.bods.push(b); return b;
+  };
+  const letters = (text, mat, x, y, z) => { live.texts.push(text); return add(textGeo(text), mat, x, y, z); };
+  const r = u.r0, y = rowY(r), z = rowZ(r), cz = z - 0.34 * FS;
+  if (u.type === 'slab') {             // the title and the section headings: full-width slabs, a safe place to land
+    box(W / 2, TH / 2, LH / 2, 0, y - TH / 2, cz, MAT.title[0]);
+    body(W / 2, (TH + LETTER) / 2, LH / 2, 0, y + (LETTER - TH) / 2, cz, 'base');
+    for (const it of u.items) letters(it.text, MAT.title[1], -W / 2 + it.x, y, z);
+    if (u.kerb) {                      // a kerb along the front edge of the page
+      box(W / 2, 0.5, 0.14, 0, y + 0.1, frontZ(r) + 0.14, MAT.title[0]);
+      body(W / 2, 0.5, 0.14, 0, y + 0.1, frontZ(r) + 0.14, 'rim');
+    }
+  } else if (u.type === 'words') {
+    for (const it of u.items) {
+      const off = !it.link && L.offSet.has(it.wi);
+      const [tileMat, inkMat] = MAT[off ? 'off' : it.kind], X = -W / 2 + it.x, cx = X + it.full / 2;
+      const sunk = it.link ? SINK : 0, charged = it.link && L.charged.has(it.link);
+      const [tm, im] = charged ? MAT.charged : [tileMat, inkMat];
+      const lt = letters(it.text, im, X + (it.shift || 0), y - sunk * 0.45, z); if (it.sq) lt.scale.x = it.sq;
+      const tile = add(UNIT_BOX, tm, cx, y - TH / 2 - sunk, cz, it.full, TH, LH);
+      const b = body(it.full / 2, (TH + LETTER) / 2, LH / 2, cx, y + (LETTER - TH) / 2 - sunk, cz, it.kind);
+      let parts = [];
+      if (sunk) {
+        const bot = y - sunk, t = 0.1, hy = (y - bot) / 2, my = (y + bot) / 2;
+        parts = [add(collarGeo(it.full, LH, sunk), tm, cx, bot, cz), add(DISH, dbl(tm), cx, y, cz, it.full / 2 - 0.1, sunk, LH / 2 - 0.1)];
+        for (const [hx, hz, x, zz] of [[it.full / 2, t / 2, cx, cz + LH / 2 - t / 2], [it.full / 2, t / 2, cx, cz - LH / 2 + t / 2], [t / 2, LH / 2, cx - it.full / 2 + t / 2, cz], [t / 2, LH / 2, cx + it.full / 2 - t / 2, cz]])
+          body(hx, hy, hz, x, my, zz, 'rim');        // an invisible lip round the dent keeps a resting ball in
+      }
+      b.parts = parts;
+      b.link = it.link; b.tile = tile; b.letters = lt; b.ty = tile.position.y; b.ly = y - sunk * 0.45; b.tx = tile.position.x; b.lx = lt.position.x; b.tz = tile.position.z; b.lz = lt.position.z; b.pulse = 0; b.text = it.text; b.wi = it.wi; b.off = off;
+      tile.userData.body = b; L.tiles.push(tile); if (b.link) L.links.push(b);
+      const pk = L.article.title + '|' + it.wi, pt = (it.kind === 'plain' || it.kind === 'bounce') && puType(pk);
+      if (pt && !S.pu.has(pk)) {                 // a power-up badge floating over the word
+        const m = add(PU_GEO, PU_MAT[pt], cx, y + 1.5, cz); m.userData.y0 = m.position.y; m.userData.ph = it.wi * 1.7;
+        b.pu = { type: pt, key: pk, mesh: m }; badges.add(b);
+      }
+    }
+  } else {                             // a picture from the article, lying flat in a frame: it catches the ball
+    const { bw, D, iw, id, cx, photo } = u, t = 0.14, zf = frontZ(r), tz = zf - D / 2, top = y + LETTER;
+    box(bw / 2, TH / 2, D / 2, cx, top - TH / 2, tz, MATX.wood);
+    const floor = body(bw / 2, TH / 2, D / 2, cx, top - TH / 2, tz, 'bowl');
+    const mat = new THREE.MeshBasicMaterial({ color: 0x33415f }); live.mats.push(mat);
+    const pic = add(UNIT_PLANE, mat, cx, top + 0.012, tz, iw, id, 1);
+    pic.rotation.x = -Math.PI / 2; pic.userData.body = floor; L.tiles.push(pic);
+    for (const [hx, hz, x, zz] of [[bw / 2, t, cx, zf - t], [bw / 2, t, cx, zf - D + t], [t, D / 2, cx - bw / 2 + t, tz], [t, D / 2, cx + bw / 2 - t, tz]]) {
+      box(hx, (RIM_H + TH) / 2, hz, x, top + (RIM_H - TH) / 2, zz, MATX.frame);
+      body(hx, (RIM_H + TH) / 2, hz, x, top + (RIM_H - TH) / 2, zz, 'rim');
+    }
+    const bowl = live.bowl = { x0: cx - bw / 2, x1: cx + bw / 2, z0: tz - D / 2, z1: tz + D / 2, cx, cz: tz, top, photo };
+    floor.photo = photo; L.bowls.push(bowl);
+    loadPic(pic, photo.url);
+  }
+}
+function dropUnit(L, u) {
+  const live = u.live; if (!live) return;
+  u.live = null; L.liveUnits.delete(u);
+  for (const m of live.objs) { m.userData.dead = true; L.group.remove(m); }
+  for (const t of live.texts) dropText(t);
+  for (const m of live.mats) { if (m.map) m.map.dispose(); m.dispose(); }
+  for (const b of live.bods) { world.removeBody(b); pulsing.delete(b); badges.delete(b); }
+  const gone = new Set(live.bods), g = new Set(live.objs);
+  L.bodies = L.bodies.filter(b => !gone.has(b)); L.links = L.links.filter(b => !gone.has(b)); L.tiles = L.tiles.filter(m => !g.has(m));
+  if (live.bowl) L.bowls = L.bowls.filter(b => b !== live.bowl);
+}
+// Keep the rows near the ball built: drop the ones that left the window, then add missing ones (nearest ahead first) within the time budget.
+function stream(L, budget, ahead = AHEAD) {
+  const t0 = performance.now(), rb = rowAt(L, ball.position.z), lo = rb - BEHIND, hi = rb + ahead;
+  for (const u of [...L.liveUnits]) if (u.r1 < lo || u.r0 > hi) dropUnit(L, u);
+  const i0 = L.unitAt[rb - L.rMin], us = L.units;
+  for (let i = i0; i < us.length && us[i].r0 <= hi; i++) if (!us[i].live) { buildUnit(L, us[i]); if (performance.now() - t0 > budget) return; }
+  for (let i = i0 - 1; i >= 0 && us[i].r1 >= lo; i--) if (!us[i].live) { buildUnit(L, us[i]); if (performance.now() - t0 > budget) return; }
+}
+
+function clearLevel() {
+  clearExtras();
+  const L = S.level; if (!L) return;
+  for (const u of [...L.liveUnits]) dropUnit(L, u);
+  for (const b of L.bodies) world.removeBody(b);
+  for (const m of L.mats) { if (m.map) m.map.dispose(); m.dispose(); }
+  L.group.traverse(o => o.userData.dead = true);
+  scene.remove(L.group); pulsing.clear(); clearPops();
+  S.level = null;
+}
+
+function buildLevel(article, photos = new Map(), keep = {}) {
+  clearLevel();
+  const t0 = performance.now();
+  const W0 = S.W0 = baseW(), W = S.W = W0 * 1.5;
+  camFit();
+  const lay = layoutLevel(article, photos, W, W0);
+  const tLay = performance.now() - t0;
+  const group = new THREE.Group(), bodies = [], tiles = [];
+  if (!S.off.has(article.title)) S.off.set(article.title, new Set());
+  const L = S.level = { ...lay, group, W, bodies, tiles, bowls: [], links: [], liveUnits: new Set(), mats: [], article, offSet: S.off.get(article.title), charged: keep.charged || new Set(), photos };
+  S.wasPortrait = portrait();
+  const r = lay.rows, rMin = lay.rMin;
+  const fixed = (hx, hy, hz, x, y, z, kind, q) => {
+    const b = new CANNON.Body({ mass: 0, material: matTile, shape: new CANNON.Box(new CANNON.Vec3(hx, hy, hz)) });
+    b.position.set(x, y, z); if (q) b.quaternion.set(q.x, q.y, q.z, q.w); b.aabbNeedsUpdate = true; b.updateAABB();
+    b.kind = kind; b.link = null; world.addBody(b); bodies.push(b); return b;
+  };
+  const mesh = (geo, mat, x, y, z, sx, sy, sz) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); group.add(m); return m; };
+
+  // The end of the article is a tall bouncy wall that sends the ball back down. It shows the article's main picture.
+  const wh = 9, wy = rowY(r - 1) + LETTER - 0.3 + wh / 2, wz = frontZ(r) - 0.4, ww = W + 3;
+  mesh(UNIT_BOX, MATX.wall, 0, wy, wz, ww, wh, 0.8);
+  const wallBody = fixed(ww / 2, wh / 2, 0.4, 0, wy, wz, 'wall');
+  const wallMat = new THREE.MeshBasicMaterial({ color: 0x8f3547 }); L.mats.push(wallMat);
+  const wallPic = mesh(UNIT_PLANE, wallMat, 0, wy, wz + 0.41, ww - 0.8, wh - 0.8, 1);
+  wallPic.userData.body = wallBody; tiles.push(wallPic);
+
+  // Glass walls down both sides keep the ball over the page. It can still drop through the gaps between words.
+  {
+    const a = new THREE.Vector3(0, rowY(rMin), frontZ(rMin) + 0.3), b = new THREE.Vector3(0, rowY(r), frontZ(r) - 0.8);
+    const dir = b.clone().sub(a), len = dir.length(), H = 18, below = 1.4;
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir.clone().normalize());
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+    const mid = a.clone().add(b).multiplyScalar(0.5).addScaledVector(up, H / 2 - below);
+    const railAt = a.clone().add(b).multiplyScalar(0.5).addScaledVector(up, 0.25);
+    for (const sd of [-1, 1]) {
+      const x = sd * (W / 2 + 0.15);              // the glass's inner face sits exactly on the page edge: no gap to wedge a ball in
+      const m = mesh(UNIT_BOX, MATX.glass, x, mid.y, mid.z, 0.3, H, len); m.quaternion.copy(q); m.renderOrder = 3;
+      const rail = mesh(UNIT_BOX, MATX.rail, x, railAt.y, railAt.z, 0.34, 0.16, len); rail.quaternion.copy(q);
+      fixed(0.15, H / 2, len / 2, x, mid.y, mid.z, 'side', q);
+    }
+    // A tall wall across the bottom of the page, wall to wall. Physics only, no mesh: it is invisible, so it never hides the words.
+    const bh = 20;
+    fixed((W + 1.5) / 2, bh / 2, 0.15, 0, rowY(rMin) - below + bh / 2, frontZ(rMin) + 0.5, 'back');
+  }
+  scene.add(group);
+
+  // The ball starts on the first word of the title.
+  const tu = lay.units[0], it = tu.items[0], cz = rowZ(tu.r0) - 0.34 * FS;
+  const first = new CANNON.Vec3(it ? -W / 2 + it.x + it.full / 2 : 0, rowY(tu.r0) + LETTER + R + 0.6, cz);
+  ball.position.copy(first); ball.velocity.setZero(); ball.angularVelocity.setZero(); ball.wakeUp();
+  stream(L, Infinity, 15);                                   // the first rows now, the rest a few at a time while playing
+  S.load = { layoutMs: +tLay.toFixed(1), buildMs: +(performance.now() - t0 - tLay).toFixed(1) };
+  S.lastSafe.copy(first); S.levelAt = performance.now(); S.pendingLink = null; S.hit = null; S.dir = 1; S.bowl = null; S.linkRest = 0;
+  const o = camOff();
+  camera.position.set(camX(first.x), first.y + o.y, first.z + o.z);
+  wikiSync();
+
+  L.credit = `Text: <a href="https://en.wikipedia.org/wiki/${encodeURIComponent(article.title.replace(/ /g, '_'))}" target="_blank" rel="noopener">${esc(article.title)}</a>, Wikipedia, CC BY-SA 4.0 · Pictures: Wikimedia Commons, tap one for its credit`;
+  $('credit').innerHTML = L.credit;
+  getInfo(article.title).then(info => {
+    if (S.level !== L) return;
+    const spare = photos.values().next().value;
+    const show = (url, a, photo) => {                         // the whole picture, as large as fits on the wall
+      const pw = ww - 0.8, ph = wh - 0.8; let w = pw, h = pw / a; if (h > ph) { h = ph; w = ph * a; }
+      wallPic.scale.set(w, h, 1); wallBody.photo = photo; loadPic(wallPic, url);
+    };
+    if (info.thumb) show(info.thumb, info.tw / info.th || 1.4, { file: info.file, credit: info.credit });
+    else if (spare) show(spare.url, spare.w / spare.h, spare);
+  });
+}
+const photoCredit = ph => `Picture: ${ph.credit || 'see file page'}, Wikimedia Commons`;
+// Camera offset from the ball. The page is three times wider than the screen shows, so the camera follows the ball sideways;
+// on a phone it stands back far enough to show the old page width (10) across the screen.
+let CAM = { y: 11, z: 10.5, ahead: 5.5, half: 15 };
+function camFit() {
+  const tanH = Math.tan(camera.fov * Math.PI / 360) * camera.aspect;
+  if (!portrait()) { CAM = { y: 11, z: 10.5, ahead: 5.5, half: tanH * Math.hypot(11, 10.5) }; return; }
+  const dy = 14, dz = 21, len = Math.hypot(dy, dz), uy = dy / len, uz = dz / len;   // the old phone view: 14.5 up and 12 back, looking 9 ahead
+  const back = len - (14.5 * uy + 12 * uz);                   // how far the look point lies beyond the ball along the view
+  const half = 10 / 2 + 0.9 + 0.6;                            // the old page width plus its glass, plus a margin
+  const t = Math.max(len, half / tanH + back);
+  CAM = { y: 0.5 + t * uy, z: -9 + t * uz, ahead: 9, half };
+}
+const camOff = () => CAM;
+// Where the camera stands sideways for a ball at x: over the ball, but never so far out that it looks past the glass walls.
+const camX = x => { const lim = Math.max(0, S.W / 2 + 1.2 - CAM.half); return Math.max(-lim, Math.min(lim, x)); };
+
+async function goTo(title, { viaLink = false, back = false } = {}) {
+  if (S.busy) return; S.busy = true;
+  $('flash').classList.add('on'); $('card').hidden = true;
+  try {
+    const t0 = performance.now();
+    const art = await getArticle(title), photos = await figurePhotos(art);
+    const tFetch = performance.now() - t0;
+    if (!back && S.level && !S.fresh) S.history.push(S.level.article.title);
+    S.fresh = false;
+    if (viaLink) S.hops++;
+    S.path.push(art.title);
+    if (viaLink && !back && !S.visited.has(art.title)) S.mult++;        // a new article through a link: +1 multiplier
+    S.visited.add(art.title);
+    buildLevel(art, photos);
+    S.load = { ...S.load, fetchMs: +tFetch.toFixed(0), totalMs: +(performance.now() - t0).toFixed(0) };
+    hud();
+    if (art.title === S.target) endRun(true);
+    else if (!art.links.length) toast('Dead end: no links here. Use Back.', 3000);
+    else { const n = linksNeeded(); if (n > 1) toast(`Land on ${n} links on this page to go through one`, 2600);
+      else getInfo(art.title).then(i => { if (S.level?.article === art && i.desc) toast(`${art.title}: ${i.desc}`, 2200); }); }
+  } catch (e) {
+    toast('Could not load "' + title + '". ' + e.message, 3000);
+    if (S.level) { ball.position.copy(S.lastSafe); ball.velocity.setZero(); }
+  } finally {
+    S.busy = false; S.pendingLink = null;
+    setTimeout(() => $('flash').classList.remove('on'), 60);
+  }
+}
+
+async function newGame(mode) {
+  $('win').hidden = true; $('intro').hidden = true; S.won = false; S.mode = mode;
+  S.rng = mode === 'daily' ? mulberry32(DAY * 7919 + 17) : Math.random;
+  S.flings = 0; S.hops = 0; S.path = []; S.history = []; S.fresh = true;
+  S.score = 0; S.mult = 1; S.lives = LIVES; S.visited = new Set(); S.topped = new Set(); S.photoPts = new Set(); S.landed = []; S.off = new Map(); S.runAt = performance.now(); S.dist = 0; S.travel = 0; S.prevP = null; endState = null;
+  S.multi = 0; S.pu = new Set(); setBounce(1); clearExtras(); hud();
+  $('tlab').textContent = mode === 'daily' ? `Reach · Daily #${DAY}` : 'Reach';
+  $('tname').textContent = 'Choosing a target…'; $('timg').removeAttribute('src');
+  const pick = arr => arr[Math.floor(S.rng() * arr.length)];
+  const shuffle = arr => { arr = [...arr]; for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(S.rng() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; };
+  const fa = await featuredList();
+  let start = pick(fa.length ? fa : START_POOL), featured = false;
+  if (mode === 'daily') { const t = await featuredTitle(); if (t) { start = t; featured = true; } }
+  try {
+    const a = await getSeed(start);
+    const ok = t => !/^\d+$/.test(t) && !/^List of/i.test(t) && t !== a.title;
+    let raw = null; S.parHops = 2;
+    for (const mid of shuffle(a.seedLinks.filter(ok)).slice(0, 4)) {
+      try {
+        const b = await getSeed(mid);
+        const far = b.seedLinks.filter(t => ok(t) && !a.seedLinks.includes(t) && t !== b.title);
+        if (far.length) { raw = await bestTarget(shuffle(far).slice(0, 8)); break; }
+      } catch {}
+    }
+    if (!raw) { raw = pick(a.seedLinks.filter(ok)); S.parHops = 1; }
+    const tgt = await getSeed(raw);                        // resolves redirects to the real title
+    S.targetRaw = raw; S.target = tgt.title;
+    $('tname').textContent = S.target;
+    getInfo(S.target).then(i => { if (i.thumb && S.target === tgt.title) $('timg').src = i.thumb; });
+    S.runAt = performance.now();
+    await goTo(start);
+    if (featured) toast("Today's featured article: " + S.path[0], 2600);
+  } catch (e) { toast('Could not reach Wikipedia. ' + e.message, 4000); $('tname').textContent = 'Offline?'; }
+}
+
+// ---------- end of a run: out of lives, or the target reached ----------
+const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+const shortDate = iso => { try { return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); } catch { return ''; } };
+let endState = null;      // the run just finished, until it has been sent to the leaderboard
+function endRun(success) {
+  if (S.won) return; S.won = true; S.aiming = null; hideAim(); clearExtras();
+  if (success) { S.score += 100 * S.mult; sfx.win(); } else sfx.fall();
+  hud();
+  const seconds = Math.max(0, Math.round((performance.now() - (S.runAt || performance.now())) / 1000));
+  const reached = S.level?.article.title || S.path[S.path.length - 1] || '';
+  const daily = S.mode === 'daily';
+  const rec = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), score: S.score, mult: S.mult, start: S.path[0] || '', reached,
+    target: S.target, success, seconds, date: new Date().toISOString(), daily: daily ? DAY : null, version: VERSION };
+  const runs = loadRuns(), prevBest = bestOf(runs), pb = rec.score > prevBest;
+  runs.push(rec); saveRuns(runs);
+  $('endh').textContent = success ? 'You made it' : 'Out of lives';
+  $('final').textContent = S.score;
+  $('pb').hidden = !pb;
+  $('winline').textContent = (success ? `You reached ${S.target}: +${100 * S.mult} bonus. ` : `You fell for the last time on ${reached}. `) +
+    `Multiplier ×${S.mult}, ${S.visited.size} article${S.visited.size === 1 ? '' : 's'}, ${mmss(seconds)}.` + (pb || !prevBest ? '' : ` Personal best: ${prevBest}.`) + ` Distance points: ${S.travel || 0}.`;
+  renderEndTops();
+  $('winpath').textContent = S.path.join('  →  ');
+  // Every link landed on this run (purple ones, and the ones that took you through), each opening on Wikipedia.
+  const landed = S.landed || [];
+  $('landed').innerHTML = landed.length ? `<span class="lab">Links you landed on (${landed.length})</span><ul>` + landed.map(x =>
+      `<li><a href="${wikiURL(x.link)}" target="_blank" rel="noopener">${esc(x.link)}</a> <span class="on">on ${esc(x.from)}</span>${x.thru ? ' <span class="thru">→ went through</span>' : ''}</li>`).join('') + '</ul>'
+    : '<span class="lab">No links landed on this run</span>';
+  $('top3').innerHTML = [...runs].sort((a, b) => b.score - a.score).slice(0, 3).map(r =>
+    `<li${r.id === rec.id ? ' class="me"' : ''}><b>${r.score}</b> · ${esc(r.reached || '?')} · ${mmss(r.seconds || 0)} · ${esc(shortDate(r.date))}${r.daily ? ' · Daily #' + r.daily : ''}</li>`).join('');
+  S.shareText = `Linkshot${daily ? ' Daily #' + DAY : ''}: ${S.score} points (×${S.mult})${success ? ' ★' : ''}\n${S.path[0]} → ${reached}${success ? '' : ' (target ' + S.target + ')'}\n${mmss(seconds)}`;
+  endState = { sent: false, run: { player: playerId(), name: '', score: S.score, multiplier: S.mult, articles: S.visited.size, target: S.target || '',
+    reached: success, endedOn: reached, daily, day: DAY, seconds, version: VERSION } };
+  $('namebox').hidden = !LB.endpoint; $('nick').value = playerName();
+  $('rank').textContent = LB.endpoint ? 'Save your score to see where you rank' : 'Leaderboard offline';
+  setTimeout(() => { if (S.won) $('win').hidden = false; }, success ? 900 : 700);
+}
+async function submitRun(name) {
+  const st = endState; if (!st || st.sent || !LB.endpoint) return; st.sent = true;
+  const res = await LB.submit({ ...st.run, name: (name || playerName() || 'Anonymous').slice(0, 20) });
+  if (endState !== st) return;
+  if (!res) { st.sent = false; $('namebox').hidden = false; $('rank').textContent = "Couldn't save your score. Check your connection and try again."; return; }
+  $('namebox').hidden = true;
+  const parts = [];
+  if (res.rankAllTime) parts.push(`All-time rank #${res.rankAllTime}${res.totalPlayers ? ' of ' + res.totalPlayers + ' players' : ''}`);
+  if (st.run.daily && res.rankDaily) parts.push(`Daily #${DAY} rank #${res.rankDaily}`);
+  $('rank').textContent = parts.join(' · ') || 'Score sent';
+  renderEndTops();
+}
+// The start menu: personal bests and today's daily leaderboard.
+async function renderEndTops() {
+  const note = t => `<li style="list-style:none;margin-left:-20px">${t}</li>`;
+  const list = (top, empty) => top ? (top.length ? top.map(t => `<li>${esc(t.name)} · <b>${t.score}</b>${t.endedOn ? ` <span class="on">· ${esc(t.endedOn)}</span>` : ''}</li>`).join('') : note(empty)) : note('Leaderboard offline');
+  $('enddaily').innerHTML = $('endall').innerHTML = note('Loading…');
+  const [day, all] = await Promise.all([LB.top('daily', 5), LB.top('alltime', 5)]);
+  $('enddaily').innerHTML = list(day, 'No scores yet today'); $('endall').innerHTML = list(all, 'No scores yet');
+}
+async function renderMenu() {
+  featuredTitle().then(t => { $('featured').textContent = t ? `Today's daily: ${t}` : ''; });
+  const runs = loadRuns(), b = bestOf(runs), d = bestOf(runs.filter(r => r.daily === DAY));
+  $('hsbest').textContent = b || '–'; $('hsday').textContent = d || '–'; $('hsdaylab').textContent = `Daily #${DAY} best`;
+  $('hstop').innerHTML = '<li style="list-style:none;margin-left:-22px">Loading…</li>';
+  const note = t => `<li style="list-style:none;margin-left:-22px">${t}</li>`;
+  const list = (top, empty) => top ? (top.length ? top.map(t => `<li>${esc(t.name)} · <b>${t.score}</b>${t.endedOn ? ` <span class="on">· ${esc(t.endedOn)}</span>` : ''}</li>`).join('') : note(empty)) : note('Leaderboard offline');
+  if (!$('hsall')) $('hstop').insertAdjacentHTML('afterend', '<span class="lab" style="display:block;margin-top:8px">All-time top 5</span><ol id="hsall"></ol>');
+  $('hsall').innerHTML = note('Loading…');
+  const [day, all] = await Promise.all([LB.top('daily', 5), LB.top('alltime', 5)]);
+  $('hstop').innerHTML = list(day, 'No scores yet today');
+  $('hsall').innerHTML = list(all, 'No scores yet');
+}
+
+// ---------- the article itself, live from Wikipedia, in a panel ----------
+const wikiURL = t => `https://en.wikipedia.org/wiki/${encodeURIComponent(t.replace(/ /g, '_'))}`;
+function wikiSync() {
+  const t = S.level?.article.title; if (!t || !$('wiki').classList.contains('on')) return;
+  $('wikit').textContent = t; $('wikiopen').href = wikiURL(t);
+  const src = wikiURL(t) + '?useskin=minerva';
+  if ($('wikif').getAttribute('src') !== src) $('wikif').setAttribute('src', src);
+}
+function wikiToggle(on = !$('wiki').classList.contains('on')) {
+  $('wiki').classList.toggle('on', on); $('wiki').setAttribute('aria-hidden', String(!on)); document.body.classList.toggle('wiki', on);
+  if (on) { S.aiming = null; hideAim(); wikiSync(); }
+}
+
+// ---------- aiming ----------
+function grounded() {
+  return ball.sleepState === CANNON.Body.SLEEPING || performance.now() - S.lastContact < 250;
+}
+function pull(a) { const dx = a.sx - a.x, dy = a.y - a.sy, len = Math.hypot(dx, dy); return { dx, dy, len, p: Math.min(len / (0.34 * Math.min(innerWidth, innerHeight) + 60), 1) }; }
+function flingVelocity(a) {
+  const { dx, dy, len, p } = pull(a);
+  if (p < 0.08) return null;
+  const P = (0.25 + 0.75 * p) * MAXV, h = P * Math.cos(ELEV);
+  return new CANNON.Vec3(h * dx / len, P * Math.sin(ELEV), -h * dy / len);
+}
+// Follow the arc until it meets a word. Returns the points flown and what is hit.
+function predict(v) {
+  const p0 = launchPoint().clone(), pts = [];
+  for (let i = 1; i <= 80; i++) {
+    const t = i * 0.03, x = p0.x + v.x * t, y = p0.y + v.y * t + 0.5 * GRAV * t * t, z = p0.z + v.z * t;
+    if (t > 0.15) for (const b of S.level.bodies) {
+      if (b.kind === 'side' || b.kind === 'back') continue;
+      const h = b.shapes[0].halfExtents;
+      if (Math.abs(x - b.position.x) <= h.x + R * 0.6 && Math.abs(z - b.position.z) <= h.z + R * 0.6 &&
+          y - R <= b.position.y + h.y && y + R >= b.position.y - h.y) return { pts, hit: { b, x, y: b.position.y + h.y, z } };
+    }
+    pts.push([x, y, z]);
+  }
+  return { pts, hit: null };
+}
+function hideAim() { dots.forEach(d => d.visible = false); ring.visible = false; sling.visible = false; bandMeshes.forEach(m => m.visible = false); $('aimhint').hidden = true; }
+// The slingshot is raised: a shot always leaves from just above the next row's words, so a ball sitting in a link's dent
+// (or anywhere low) is not stopped by the tiles in front of it.
+const _lp = new CANNON.Vec3();
+function launchPoint() {
+  _lp.copy(ball.position);
+  const L = S.level; if (!L) return _lp;
+  const r = rowAt(L, ball.position.z), clear = Math.max(rowY(r), rowY(r + 1)) + LETTER + R + 0.25;
+  if (_lp.y < clear) _lp.y = clear;
+  return _lp;
+}
+function doFling(v) {
+  if (ball.sleepState === CANNON.Body.SLEEPING || ball.velocity.length() < 1) S.lastSafe.copy(ball.position);   // a mid-air spot must never become the respawn point
+  S.dir = v.z <= 0 ? 1 : -1; S.flungAt = performance.now();
+  ball.position.copy(launchPoint()); ball.wakeUp(); ball.velocity.copy(v);
+  ball.angularVelocity.set(v.z * 1.2, 0, -v.x * 1.2);
+  if (S.multi > 0) { spawnExtras(S.multi, v); S.multi = 0; }
+  S.flings++; hud(); sfx.fling(v.length() / MAXV);
+}
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function inspect(x, y) {
+  ndc.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObjects(S.level.tiles, false)[0];
+  const b = hit?.object.userData.body;
+  if (b?.link) showCard(b.link);
+  else if (b?.kind === 'bounce') toast('Bold words bounce harder', 1200);
+  else if ((b?.kind === 'bowl' || b?.kind === 'wall') && b.photo) toast(photoCredit(b.photo), 3500);
+}
+canvas.addEventListener('pointerdown', e => {
+  audioInit();
+  if (S.busy || S.won || !S.level) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch {}
+  S.aiming = { sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, can: grounded(), moved: false };
+});
+canvas.addEventListener('pointermove', e => {
+  const a = S.aiming; if (!a) return;
+  a.x = e.clientX; a.y = e.clientY;
+  if (!a.moved && Math.hypot(a.x - a.sx, a.y - a.sy) > 10) a.moved = true;
+});
+const endAim = e => {
+  audioInit();
+  const a = S.aiming; if (!a) return;
+  S.aiming = null; hideAim();
+  if (e.type !== 'pointerup' || S.busy || S.won) return;
+  a.x = e.clientX; a.y = e.clientY;
+  if (!a.moved && Math.hypot(a.x - a.sx, a.y - a.sy) <= 10) return inspect(e.clientX, e.clientY);
+  if (!a.can) return toast('Wait for the ball to land', 900);
+  const v = flingVelocity(a); if (v) doFling(v);
+};
+canvas.addEventListener('pointerup', endAim); canvas.addEventListener('pointercancel', endAim);
+for (const t of ['touchstart', 'touchmove', 'touchend']) canvas.addEventListener(t, e => e.preventDefault(), { passive: false });
+addEventListener('gesturestart', e => e.preventDefault());
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+ball.addEventListener('collide', e => {
+  const b = e.body, imp = Math.abs(e.contact.getImpactVelocityAlongNormal());
+  if (b.pu) collectPU(b);
+  if (b.tile && !b.link) { b.pulse = 1; b.seed = Math.random() * 6.28; pulsing.add(b); }   // links keep still: their dent is several pieces
+  const onTop = ball.position.y > b.position.y + b.shapes[0].halfExtents.y;      // landed on it, not hit its side
+  if (b.kind === 'wall') { S.hit = 'wall'; sfx.wall(); }
+  else if (b.kind === 'side') { S.side = Math.sign(ball.position.x) || 1; S.sideV = Math.abs(ball.velocity.x); sfx.side(); }
+  else if ((b.kind === 'plain' || b.kind === 'bounce') && onTop) {
+    if (S.hit !== 'wall') S.hit = b.kind; b.kind === 'bounce' ? sfx.boing() : sfx.hop();
+    if (!b.off && !S.won && !S.busy) lightOff(b);
+  }
+  else if (imp > 1.2) sfx.tok(imp);
+});
+
+// ---------- buttons ----------
+const setMute = () => { $('mute').textContent = muted ? '🔇' : '🔊'; };
+setMute();
+$('mute').onclick = () => { muted = !muted; store.set('linkshot-mute', muted ? '1' : '0'); setMute(); audioInit(); };
+$('daily').onclick = () => { audioInit(); newGame('daily'); };
+$('random').onclick = () => { audioInit(); newGame('random'); };
+$('again').onclick = () => { submitRun(); newGame(S.mode === 'daily' ? 'daily' : 'random'); };
+$('menu').onclick = () => { renderMenu(); $('intro').hidden = false; };
+$('tomenu').onclick = () => { submitRun(); $('win').hidden = true; renderMenu(); $('intro').hidden = false; };
+renderMenu();
+const saveNick = () => {
+  const n = $('nick').value.replace(/\s+/g, ' ').trim().slice(0, 20);
+  if (!n) { $('rank').textContent = 'Type a name first'; $('nick').focus(); return; }
+  store.set('linkshot-name', n); $('nick').blur();
+  if (endState?.sent) return;
+  $('rank').textContent = 'Saving your score…';
+  submitRun(n);
+};
+// A run left without pressing Save still counts, under the last name used (or Anonymous), even if the tab is closed.
+addEventListener('pagehide', () => submitRun());
+$('nicksave').onclick = saveNick;
+$('nick').addEventListener('keydown', e => { if (e.key === 'Enter') saveNick(); });
+$('wikib').onclick = () => wikiToggle();
+$('wikix').onclick = () => wikiToggle(false);
+$('target').onclick = () => { if (S.target) showCard(S.target); };
+$('back').onclick = () => {
+  if (S.busy || !S.history.length) { toast('Nothing to go back to', 900); return; }
+  const prev = S.history.pop(); S.flings++; goTo(prev, { back: true });
+};
+$('share').onclick = async () => {
+  const text = S.shareText + '\n' + location.href.split('#')[0];
+  try { if (navigator.share) { await navigator.share({ text }); return; } } catch { return; }
+  try { await navigator.clipboard.writeText(text); toast('Result copied'); } catch { toast('Could not copy'); }
+};
+
+// ---------- loop ----------
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight; camera.fov = portrait() ? 66 : 58; camera.updateProjectionMatrix();
+  camFit(); placeSky();
+}
+addEventListener('resize', resize); resize();
+let relayTimer = 0;
+addEventListener('resize', () => { clearTimeout(relayTimer); relayTimer = setTimeout(() => { if (S.level && !S.busy && !S.won && portrait() !== S.wasPortrait) relayout(); }, 250); });
+function relayout() {
+  const L = S.level, u = L.units[L.unitAt[rowAt(L, ball.position.z) - L.rMin]];
+  const wi = (u?.items || []).find(i => i.wi != null)?.wi;
+  buildLevel(L.article, L.photos, { charged: L.charged });
+  const N = S.level, nu = wi == null ? null : N.units.find(x => x.type === 'words' && x.items.some(i => i.wi === wi));
+  if (nu) {
+    const it = nu.items.find(i => i.wi === wi) || nu.items[0];
+    ball.position.set(-N.W / 2 + it.x + it.full / 2, rowY(nu.r0) + LETTER + R + 0.3, rowZ(nu.r0) - 0.34 * FS);
+    ball.velocity.setZero(); ball.angularVelocity.setZero(); ball.wakeUp(); S.lastSafe.copy(ball.position);
+    stream(N, Infinity, 15);
+    const o = camOff(); camera.position.set(camX(ball.position.x), ball.position.y + o.y, ball.position.z + o.z);
+  }
+}
+
+const rayRes = new CANNON.RaycastResult(), rf = new CANNON.Vec3(), rt = new CANNON.Vec3();
+const look = new THREE.Vector3();
+let last = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min((now - last) / 1000, 0.05); last = now;
+  if (S.level && !S.busy) {
+    world.step(1 / 60, dt, 3);
+    if (S.side && now - (S.sideAt || 0) > 400) { S.sideAt = now; award(10, ball.position.x, ball.position.y + 1, ball.position.z); }
+    if (S.side) {                                     // the glass walls throw the ball back hard, and a little up
+      const v = ball.velocity; v.x = -S.side * Math.max(S.sideV * 1.15, 9 * S.bounce); v.y = Math.max(v.y, 4.5 * S.bounce); S.side = 0;
+    }
+    if (S.hit) {                                      // words bounce the ball along the page; the end wall turns it round
+      const h = S.hit, v = ball.velocity; S.hit = null;
+      if (h === 'wall') {
+        S.dir = -1; v.set(v.x * 0.5, 10.5 * S.bounce, 16);
+        // The first time this run the ball reaches the top of this page, the multiplier doubles.
+        const top = S.level?.article.title;
+        if (top && !S.topped.has(top)) { S.topped.add(top); award(500, ball.position.x, ball.position.y + 1.5, ball.position.z); S.mult *= 2; hud(); toast(`Top of the page: multiplier ×${S.mult}!`, 2200); sfx.win(); }
+      }
+      else v.set(v.x * 0.85, (h === 'bounce' ? BOLD_VY : HOP_VY) * S.bounce, -S.dir * (h === 'bounce' ? HOP_FWD * 1.3 : HOP_FWD));
+    }
+    stepExtras(now);
+    {                                                 // a link takes you away only once the ball has come to rest on top of it
+      const p = ball.position, v = ball.velocity; let on = null;
+      for (const b of S.level.links) {
+        const h = b.shapes[0].halfExtents, top = b.position.y + h.y;
+        if (Math.abs(p.x - b.position.x) < h.x + 0.05 && Math.abs(p.z - b.position.z) < h.z + 0.05 && p.y > top + R * 0.5 && p.y < top + R + 0.3) { on = b; break; }
+      }
+      if (on && now - S.flungAt > 250) {
+        const k = Math.max(0, 1 - dt * 5); v.scale(k, v); ball.angularVelocity.scale(k, ball.angularVelocity);   // links are sticky
+        S.linkRest = v.length() < 0.5 ? S.linkRest + dt : 0;
+        if (S.linkRest > 0.3 && !S.won && now - S.levelAt > 350) {
+          S.linkRest = -1e9;                            // handled: nothing more until the ball leaves this link
+          const L = S.level, need = linksNeeded(), fresh = !L.charged.has(on.link);
+          if (fresh) { L.charged.add(on.link); (S.landed ||= []).push({ from: L.article.title, link: on.link, thru: false }); }
+          if (L.charged.size >= need) { S.pendingLink = on.link; sfx.link(); const last = S.landed?.[S.landed.length - 1]; if (last && last.link === on.link) last.thru = true; }
+          else if (fresh) {
+            for (const lb of L.links) if (lb.link === on.link) { lb.tile.material = MAT.charged[0]; lb.letters.material = MAT.charged[1]; }   // every word of that link turns purple if (on.parts?.length) { on.parts[0].material = MAT.charged[0]; on.parts[1].material = dbl(MAT.charged[0]); } sfx.caught();
+            const left = need - L.charged.size;
+            toast(`Link ${L.charged.size} of ${need} on this page: land on ${left} more to go through`, 2200);
+          }
+        }
+      } else S.linkRest = 0;
+    }
+    {                                                 // photo trays catch the ball
+      const p = ball.position; let tray = null;
+      for (const t of S.level.bowls) if (p.x > t.x0 && p.x < t.x1 && p.z > t.z0 && p.z < t.z1 && p.y > t.top && p.y < t.top + R + 0.35) { tray = t; break; }
+      if (tray && now - S.flungAt > 350) {
+        const k = Math.max(0, 1 - dt * 7); ball.velocity.scale(k, ball.velocity); ball.angularVelocity.scale(k, ball.angularVelocity);
+        if (S.bowl !== tray) {
+          const key = S.level.article.title + '|' + (tray.photo?.file || tray.cz);
+          if (!S.photoPts.has(key)) { S.photoPts.add(key); award(100, tray.cx, tray.top + 1.2, tray.cz); }
+          S.bowl = tray; S.dir = 1; S.lastSafe.set(tray.cx, tray.top + R + 0.1, tray.cz); sfx.caught();
+          $('credit').innerHTML = S.level.credit + (tray.photo ? ' · ' + esc(photoCredit(tray.photo)) : '');
+        }
+      } else if (!tray) S.bowl = null;
+    }
+    if (world.contacts.some(c => c.bi === ball || c.bj === ball)) {
+      S.lastContact = now;
+      if (ball.velocity.length() < 0.8) { ball.velocity.scale(0.9, ball.velocity); ball.angularVelocity.scale(0.9, ball.angularVelocity); }
+    }
+    if (S.pendingLink) { const t = S.pendingLink; S.pendingLink = null; goTo(t, { viaLink: true }); }
+    else if (ball.position.y < surfAt(S.level, ball.position.z) - FALL) {
+      ball.position.copy(S.lastSafe); ball.velocity.setZero(); ball.angularVelocity.setZero(); S.dir = 1; S.hit = null;
+      if (!S.won) {
+        S.lives--; hud();
+        if (S.lives <= 0) { toast('Fell off the page: no lives left', 1500); endRun(false); }
+        else { sfx.fall(); toast(`Fell off the page: ${S.lives} ${S.lives === 1 ? 'life' : 'lives'} left`, 1300); }
+      }
+    }
+    if (S.level) stream(S.level, 5);
+  }
+  {                                                   // points for distance travelled (teleports and respawns don't count)
+    const p = ball.position, q = S.prevP;
+    if (q && S.level && !S.busy && !S.won) {
+      const d = Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
+      if (d < 3) { S.dist = (S.dist || 0) + d; if (S.dist >= DIST_PT) { const k = Math.floor(S.dist / DIST_PT); S.dist -= k * DIST_PT; S.score += k * S.mult; S.travel = (S.travel || 0) + k * S.mult; hud(); } }
+    }
+    S.prevP = { x: p.x, y: p.y, z: p.z };
+  }
+  ballMesh.position.copy(ball.position); ballMesh.quaternion.copy(ball.quaternion); paintBall(dt);
+
+  for (const b of pulsing) {                       // a word that is hit dips, shakes and springs its letters up, then settles
+    b.pulse = Math.max(0, b.pulse - dt * 2.2);
+    const k = b.pulse, ph = (1 - k) * 46 + (b.seed || 0);
+    const d = -0.38 * Math.sin(k * Math.PI) * k;                 // the dip
+    const sx = 0.16 * k * k * Math.sin(ph), sz = 0.09 * k * k * Math.cos(ph * 1.3);   // the shake, dying away
+    b.tile.position.set(b.tx + sx, b.ty + d, b.tz + sz);
+    b.letters.position.set(b.lx + sx, b.ly + d, b.lz + sz);
+    b.letters.scale.y = 1 + 3.2 * Math.sin(k * Math.PI) * k;  // the letters jump up and back
+    if (k === 0) { b.tile.position.set(b.tx, b.ty, b.tz); b.letters.position.set(b.lx, b.ly, b.lz); b.letters.scale.y = 1; pulsing.delete(b); }
+  }
+  for (const b of badges) {                        // power-up badges bob and spin over their words
+    const m = b.pu.mesh, t = now / 1000 + m.userData.ph;
+    m.position.y = m.userData.y0 + 0.14 * Math.sin(t * 2.2); m.rotation.y = t * 1.8;
+  }
+
+  rf.copy(ball.position); rt.set(ball.position.x, ball.position.y - 40, ball.position.z); rayRes.reset();
+  world.raycastClosest(rf, rt, { collisionFilterMask: 1, skipBackfaces: true }, rayRes);
+  shadow.visible = rayRes.hasHit;
+  if (rayRes.hasHit) { shadow.position.set(rayRes.hitPointWorld.x, rayRes.hitPointWorld.y + 0.02, rayRes.hitPointWorld.z);
+    shadow.scale.setScalar(Math.max(0.35, 1 - (ball.position.y - rayRes.hitPointWorld.y) * 0.03)); }
+
+  const a = S.aiming;
+  if (a && a.moved && a.can && S.level) {
+    const v = flingVelocity(a), hint = $('aimhint');
+    if (!v) hideAim();
+    else {
+      const { pts, hit } = predict(v);
+      dots.forEach((m, i) => { const p = pts[i * 3 + 2]; m.visible = !!p; if (p) m.position.set(p[0], p[1], p[2]); });
+      ring.visible = !!hit; if (hit) ring.position.set(hit.x, hit.y + 0.05, hit.z);
+      const kind = hit ? hit.b.kind : 'bad';
+      ring.material.color.set(kind === 'goal' ? 0xffcf4a : kind === 'link' ? 0x6ea0ff : kind === 'bounce' ? 0x7be3a0 : 0xffffff);
+      const text = !hit ? 'Off the page' : hit.b.link ? '→ ' + hit.b.link : kind === 'bounce' ? 'Bouncy word' : '';
+      hint.hidden = !text; hint.textContent = text; hint.className = hit ? (hit.b.link ? kind : kind === 'bounce' ? 'bounce' : '') : 'bad';
+      // the ball is drawn pulled back, opposite to where it will fly
+      const bp = launchPoint();                     // the sling and the pulled-back ball sit at the raised launch point
+      ballMesh.position.set(bp.x - v.x * 0.085, bp.y + 0.05, bp.z - v.z * 0.085);
+      sling.visible = true; sling.position.set(bp.x, bp.y, bp.z);
+      setBand(bandMeshes[0], bp.x - 0.78, bp.y + 0.7, bp.z, ballMesh.position);
+      setBand(bandMeshes[1], bp.x + 0.78, bp.y + 0.7, bp.z, ballMesh.position);
+    }
+  }
+
+  const o = camOff(), k = 1 - Math.pow(0.002, dt);
+  camera.position.x += (camX(ball.position.x) - camera.position.x) * k;
+  camera.position.y += (Math.max(ball.position.y, S.level ? surfAt(S.level, ball.position.z) - 3 : -1e9) + o.y - camera.position.y) * k;
+  camera.position.z += (ball.position.z + o.z - camera.position.z) * k;
+  look.set(camera.position.x, camera.position.y - o.y + 0.5, camera.position.z - o.z - o.ahead);
+  camera.lookAt(look);
+  stars.position.x = camera.position.x; stars.position.z = camera.position.z; stars.position.y = camera.position.y * 0.5;
+  animateSky(dt);
+  renderer.render(scene, camera);
+  for (let i = pops.length - 1; i >= 0; i--) {         // the "+N" points drift up and fade
+    const q = pops[i], age = (now - q.t) / 900;
+    if (age >= 1) { q.el.remove(); pops.splice(i, 1); continue; }
+    popV.set(q.x, q.y + age * 1.6, q.z).project(camera);
+    q.el.style.transform = `translate(${(popV.x + 1) / 2 * innerWidth}px,${(1 - popV.y) / 2 * innerHeight}px) translate(-50%,-50%) scale(${1 + 0.25 * (1 - age)})`;
+    q.el.style.opacity = String(Math.min(1, 2.2 * (1 - age)));
+  }
+}
+
+new FontLoader().load('https://cdn.jsdelivr.net/npm/three@0.169.0/examples/fonts/helvetiker_bold.typeface.json', font => {
+  S.font = font; S.glyphs = font.data.glyphs;
+  requestAnimationFrame(frame);
+}, undefined, () => toast('Could not load the font. Check your connection.', 5000));
+</script>
+</body>
+</html>
