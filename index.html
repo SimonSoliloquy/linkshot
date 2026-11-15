@@ -77,6 +77,7 @@
   .card { max-width:420px; width:100%; max-height:100%; overflow:auto; box-sizing:border-box; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px; }
   .card h1 { margin:0 0 6px; font-size:28px; letter-spacing:.02em; }
   .card h1 em { font-style:normal; color:var(--link); }
+  .by { text-transform:none; letter-spacing:.02em; } .by a { color:var(--dim); text-decoration:underline; text-underline-offset:2px; } .by a:hover { color:var(--link); }
   .card p, .card li { color:#c6cfe2; }
   .card ul { padding-left:18px; margin:10px 0 16px; }
   .row { display:flex; gap:8px; margin-top:8px; } .row button { flex:1; padding:13px; font-size:16px; }
@@ -125,7 +126,7 @@
       <li>Rest on a <span style="color:var(--link)">blue link</span> to jump there. Each page needs one more.</li>
       <li>3 lives. Grab ♥ and ×3 power-ups.</li>
     </ul>
-    <p class="lab" id="ver" style="margin:4px 0 0;opacity:.6">v2026-11-15b</p>
+    <p class="lab by" style="margin:4px 0 0"><span id="ver" style="opacity:.6"></span> · by <a href="https://simonsoliloquy.com" target="_blank" rel="noopener">simonsoliloquy.com</a></p>
   </div>
 </div>
 <div class="overlay" id="win" hidden>
@@ -143,6 +144,7 @@
     <div class="lab">Your top three</div><ol id="top3"></ol>
     <div class="row"><button class="go" id="share">Share</button><button id="again">Play again</button></div>
     <div class="row"><button id="tomenu">Menu</button></div>
+    <p class="lab by" style="margin:12px 0 0;text-align:center">Built by <a href="https://simonsoliloquy.com" target="_blank" rel="noopener">simonsoliloquy.com</a></p>
   </div>
 </div>
 
@@ -180,7 +182,7 @@ const NOW = new Date();
 const DAY = Math.floor((Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth(), NOW.getUTCDate()) - Date.UTC(2026, 10, 13)) / 864e5) + 1;
 const portrait = () => innerWidth / innerHeight < 0.8;
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
-const VERSION = 'v2026-11-15d', LIVES = 3, DIST_PT = 2;   // one point per DIST_PT units the ball travels, times the multiplier
+const VERSION = 'v2026-11-15e', LIVES = 3, DIST_PT = 2;   // one point per DIST_PT units the ball travels, times the multiplier
 // Old page widths per orientation (portrait, square-ish, wide); the page is now three times as wide.
 const baseW = () => portrait() ? 10 : innerWidth / innerHeight < 1.5 ? 17 : 24;
 
@@ -1380,7 +1382,7 @@ ball.addEventListener('collide', e => {
 
 // ---------- buttons ----------
 const setMute = () => { $('mute').textContent = muted ? '🔇' : '🔊'; };
-setMute();
+setMute(); $('ver').textContent = VERSION;
 $('mute').onclick = () => { muted = !muted; store.set('linkshot-mute', muted ? '1' : '0'); setMute(); audioInit(); };
 $('daily').onclick = () => { audioInit(); newGame('daily'); };
 $('random').onclick = () => { audioInit(); newGame('random'); };
