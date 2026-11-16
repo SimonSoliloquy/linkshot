@@ -182,7 +182,7 @@ const NOW = new Date();
 const DAY = Math.floor((Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth(), NOW.getUTCDate()) - Date.UTC(2026, 10, 13)) / 864e5) + 1;
 const portrait = () => innerWidth / innerHeight < 0.8;
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
-const VERSION = 'v2026-11-16b', LIVES = 3, DIST_PT = 2;   // one point per DIST_PT units the ball travels, times the multiplier
+const VERSION = 'v2026-11-16c', LIVES = 3, DIST_PT = 2;   // one point per DIST_PT units the ball travels up or down the page (not sideways), times the multiplier
 // Old page widths per orientation (portrait, square-ish, wide); the page is now three times as wide.
 const baseW = () => portrait() ? 10 : innerWidth / innerHeight < 1.5 ? 17 : 24;
 
@@ -1513,11 +1513,11 @@ function frame(now) {
     }
     if (S.level) stream(S.level, 5);
   }
-  {                                                   // points for distance travelled (teleports and respawns don't count)
+  {                                                   // points for distance travelled up and down the page, never sideways (teleports and respawns don't count)
     const p = ball.position, q = S.prevP;
     if (q && S.level && !S.busy && !S.won) {
-      const d = Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
-      if (d < 3) { S.dist = (S.dist || 0) + d; if (S.dist >= DIST_PT) { const k = Math.floor(S.dist / DIST_PT); S.dist -= k * DIST_PT; S.score += k * S.mult; S.travel = (S.travel || 0) + k * S.mult; hud(); } }
+      const d = Math.hypot(p.y - q.y, p.z - q.z);
+      if (d < 3 && Math.abs(p.x - q.x) < 3) { S.dist = (S.dist || 0) + d; if (S.dist >= DIST_PT) { const k = Math.floor(S.dist / DIST_PT); S.dist -= k * DIST_PT; S.score += k * S.mult; S.travel = (S.travel || 0) + k * S.mult; hud(); } }
     }
     S.prevP = { x: p.x, y: p.y, z: p.z };
   }
