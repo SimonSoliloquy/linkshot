@@ -182,7 +182,7 @@ const NOW = new Date();
 const DAY = Math.floor((Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth(), NOW.getUTCDate()) - Date.UTC(2026, 10, 13)) / 864e5) + 1;
 const portrait = () => innerWidth / innerHeight < 0.8;
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
-const VERSION = 'v2026-11-16a', LIVES = 3, DIST_PT = 2;   // one point per DIST_PT units the ball travels, times the multiplier
+const VERSION = 'v2026-11-16b', LIVES = 3, DIST_PT = 2;   // one point per DIST_PT units the ball travels, times the multiplier
 // Old page widths per orientation (portrait, square-ish, wide); the page is now three times as wide.
 const baseW = () => portrait() ? 10 : innerWidth / innerHeight < 1.5 ? 17 : 24;
 
@@ -1449,8 +1449,7 @@ function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05); last = now;
   if (S.level && !S.busy) {
     world.step(1 / 60, dt, 3);
-    if (S.side && now - (S.sideAt || 0) > 400) { S.sideAt = now; award(10, ball.position.x, ball.position.y + 1, ball.position.z); }
-    if (S.side) {                                     // the glass walls throw the ball back hard, and a little up
+    if (S.side) {                                     // the glass walls throw the ball back hard, and a little up (no points for it)
       const v = ball.velocity; v.x = -S.side * Math.max(S.sideV * 1.15, 9 * S.bounce); v.y = Math.max(v.y, 4.5 * S.bounce); S.side = 0;
     }
     if (S.hit) {                                      // words bounce the ball along the page; the end wall turns it round
@@ -1555,7 +1554,7 @@ function frame(now) {
       ring.visible = !!hit; if (hit) ring.position.set(hit.x, hit.y + 0.05, hit.z);
       const kind = hit ? hit.b.kind : 'bad';
       ring.material.color.set(kind === 'goal' ? 0xffcf4a : kind === 'link' ? 0x6ea0ff : kind === 'bounce' ? 0x7be3a0 : 0xffffff);
-      const text = !hit ? 'Off the page' : hit.b.link ? '→ ' + hit.b.link : kind === 'bounce' ? 'Bouncy word' : '';
+      const text = !hit ? '' : hit.b.link ? '→ ' + hit.b.link : kind === 'bounce' ? 'Bouncy word' : '';
       hint.hidden = !text; hint.textContent = text; hint.className = hit ? (hit.b.link ? kind : kind === 'bounce' ? 'bounce' : '') : 'bad';
       // the ball is drawn pulled back, opposite to where it will fly
       const bp = launchPoint();                     // the sling and the pulled-back ball sit at the raised launch point
