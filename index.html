@@ -122,8 +122,9 @@
     <div class="lab" id="hstoplab">Today's top 5</div><ol id="hstop"></ol>
     <ul>
       <li><b>Swipe down and let go</b> to fling.</li>
-      <li>Land on words to light them off for points.</li>
-      <li>Rest on a <span style="color:var(--link)">blue link</span> to jump there. Each page needs one more.</li>
+      <li>Climb up the page for points. Light words off for letters × multiplier.</li>
+      <li>Rest on a <span style="color:var(--link)">blue link</span> to jump there (+1 multiplier). Each page needs one more.</li>
+      <li>Reach the end of an article: multiplier ×2, +1 per link in it.</li>
       <li>3 lives. Grab ♥ and ×3 power-ups.</li>
     </ul>
     <p class="lab by" style="margin:4px 0 0"><span id="ver" style="opacity:.6"></span> · by <a href="https://simonsoliloquy.com" target="_blank" rel="noopener">simonsoliloquy.com</a></p>
@@ -182,7 +183,7 @@ const NOW = new Date();
 const DAY = Math.floor((Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth(), NOW.getUTCDate()) - Date.UTC(2026, 10, 13)) / 864e5) + 1;
 const portrait = () => innerWidth / innerHeight < 0.8;
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
-const VERSION = 'v2026-11-16c', LIVES = 3, DIST_PT = 2;   // one point per DIST_PT units the ball travels up or down the page (not sideways), times the multiplier
+const VERSION = 'v2026-11-16d', LIVES = 3, DIST_PT = 2;   // one point per DIST_PT units the ball travels up the page (not down, not sideways), not multiplied
 // Old page widths per orientation (portrait, square-ish, wide); the page is now three times as wide.
 const baseW = () => portrait() ? 10 : innerWidth / innerHeight < 1.5 ? 17 : 24;
 
@@ -681,11 +682,6 @@ function clearPops() { for (const q of pops) q.el.remove(); pops.length = 0; }
 let bumpTimer;
 // The first landing on a word that is not a link switches its light off: one point per letter, times the multiplier.
 const linksNeeded = () => Math.max(1, S.visited.size);   // the n-th article of a run needs n links landed on before one takes you away
-function award(base, x, y, z) {
-  if (S.won || !base) return;
-  const n = base * S.mult; S.score += n; hud(); pop('+' + n, x, y, z);
-  const sc = $('score'); sc.classList.add('bump'); clearTimeout(bumpTimer); bumpTimer = setTimeout(() => sc.classList.remove('bump'), 250);
-}
 function lightOff(b) {
   const L = S.level; if (!L || b.off) return;
   b.off = true; b.tile.material = MAT.off[0]; b.letters.material = MAT.off[1]; L.offSet.add(b.wi);
@@ -749,7 +745,7 @@ setBounce(1);
 
 // ---------- extra balls ----------
 // Shot out of a multi-ball power-up the moment it is hit. They score words for five bounces, then fade out. They never teleport,
-// never score distance, wall or photo points, and never cost lives: the rest of the game only ever looks at the main ball.
+// never score distance, and never cost lives: the rest of the game only ever looks at the main ball.
 const extras = [];
 const EXTRA_BOUNCES = 5, EXTRA_LIFE = 15000, EXTRA_FADE = 500, EXTRA_OP = 0.55;
 Object.assign(window.__game, { ballTile, extras, badges, puType, collectPU, setBounce, spawnExtras });
@@ -1212,7 +1208,7 @@ const shortDate = iso => { try { return new Date(iso).toLocaleDateString(undefin
 let endState = null;      // the run just finished, until it has been sent to the leaderboard
 function endRun(success) {
   if (S.won) return; S.won = true; S.aiming = null; hideAim(); clearExtras();
-  if (success) { S.score += 100 * S.mult; sfx.win(); } else sfx.fall();
+  if (success) sfx.win(); else sfx.fall();
   hud();
   const seconds = Math.max(0, Math.round((performance.now() - (S.runAt || performance.now())) / 1000));
   const reached = S.level?.article.title || S.path[S.path.length - 1] || '';
@@ -1224,7 +1220,7 @@ function endRun(success) {
   $('endh').textContent = success ? 'You made it' : 'Out of lives';
   $('final').textContent = S.score;
   $('pb').hidden = !pb;
-  $('winline').textContent = (success ? `You reached ${S.target}: +${100 * S.mult} bonus. ` : `You fell for the last time on ${reached}. `) +
+  $('winline').textContent = (success ? `You reached ${S.target}. ` : `You fell for the last time on ${reached}. `) +
     `Multiplier ×${S.mult}, ${S.visited.size} article${S.visited.size === 1 ? '' : 's'}, ${mmss(seconds)}.` + (pb || !prevBest ? '' : ` Personal best: ${prevBest}.`) + ` Distance points: ${S.travel || 0}.`;
   renderEndTops();
   $('winpath').textContent = S.path.join('  →  ');
@@ -1456,9 +1452,13 @@ function frame(now) {
       const h = S.hit, v = ball.velocity; S.hit = null;
       if (h === 'wall') {
         S.dir = -1; v.set(v.x * 0.5, 10.5 * S.bounce, 16);
-        // The first time this run the ball reaches the top of this page, the multiplier doubles.
+        // The first time this run the ball reaches the end of this article: the multiplier doubles, plus one point per link in the article.
         const top = S.level?.article.title;
-        if (top && !S.topped.has(top)) { S.topped.add(top); award(500, ball.position.x, ball.position.y + 1.5, ball.position.z); S.mult *= 2; hud(); toast(`Top of the page: multiplier ×${S.mult}!`, 2200); sfx.win(); }
+        if (top && !S.topped.has(top)) {
+          S.topped.add(top); S.mult *= 2;
+          const n = S.level.article.links.length; S.score += n; hud(); if (n) pop('+' + n, ball.position.x, ball.position.y + 1.5, ball.position.z);
+          toast(`End of the article: multiplier ×${S.mult}, +${n} for its ${n} link${n === 1 ? '' : 's'}!`, 2400); sfx.win();
+        }
       }
       else v.set(v.x * 0.85, (h === 'bounce' ? BOLD_VY : HOP_VY) * S.bounce, -S.dir * (h === 'bounce' ? HOP_FWD * 1.3 : HOP_FWD));
     }
@@ -1492,7 +1492,7 @@ function frame(now) {
         const k = Math.max(0, 1 - dt * 7); ball.velocity.scale(k, ball.velocity); ball.angularVelocity.scale(k, ball.angularVelocity);
         if (S.bowl !== tray) {
           const key = S.level.article.title + '|' + (tray.photo?.file || tray.cz);
-          if (!S.photoPts.has(key)) { S.photoPts.add(key); award(100, tray.cx, tray.top + 1.2, tray.cz); }
+          S.photoPts.add(key);                       // photos are a safe resting place; they score nothing
           S.bowl = tray; S.dir = 1; S.lastSafe.set(tray.cx, tray.top + R + 0.1, tray.cz); sfx.caught();
           $('credit').innerHTML = S.level.credit + (tray.photo ? ' · ' + esc(photoCredit(tray.photo)) : '');
         }
@@ -1513,11 +1513,11 @@ function frame(now) {
     }
     if (S.level) stream(S.level, 5);
   }
-  {                                                   // points for distance travelled up and down the page, never sideways (teleports and respawns don't count)
+  {                                                   // points for distance travelled up the page only: never down, never sideways (teleports and respawns don't count)
     const p = ball.position, q = S.prevP;
     if (q && S.level && !S.busy && !S.won) {
-      const d = Math.hypot(p.y - q.y, p.z - q.z);
-      if (d < 3 && Math.abs(p.x - q.x) < 3) { S.dist = (S.dist || 0) + d; if (S.dist >= DIST_PT) { const k = Math.floor(S.dist / DIST_PT); S.dist -= k * DIST_PT; S.score += k * S.mult; S.travel = (S.travel || 0) + k * S.mult; hud(); } }
+      const d = q.z - p.z;                            // up the page is towards -z
+      if (d > 0 && d < 3 && Math.abs(p.x - q.x) < 3 && Math.abs(p.y - q.y) < 3) { S.dist = (S.dist || 0) + d; if (S.dist >= DIST_PT) { const k = Math.floor(S.dist / DIST_PT); S.dist -= k * DIST_PT; S.score += k; S.travel = (S.travel || 0) + k; hud(); } }
     }
     S.prevP = { x: p.x, y: p.y, z: p.z };
   }
