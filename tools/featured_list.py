@@ -12,7 +12,7 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'featured.j
 
 def get(params):
     url = API + '?' + urllib.parse.urlencode({**params, 'format': 'json', 'formatversion': 2})
-    req = urllib.request.Request(url, headers={'User-Agent': 'LinkshotFeaturedList/1.0 (https://wiki-linkshot.vercel.app/) python-urllib'})
+    req = urllib.request.Request(url, headers={'User-Agent': 'LinkshotFeaturedList/1.0 (https://simonsoliloquy.com/linkshot/) python-urllib'})
     with urllib.request.urlopen(req, timeout=60) as r:
         return json.load(r)
 

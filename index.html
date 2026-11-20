@@ -183,7 +183,7 @@ const NOW = new Date();
 const DAY = Math.floor((Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth(), NOW.getUTCDate()) - Date.UTC(2026, 10, 13)) / 864e5) + 1;
 const portrait = () => innerWidth / innerHeight < 0.8;
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
-const VERSION = 'v2026-11-16d', LIVES = 3, DIST_PT = 2;   // one point per DIST_PT units the ball travels up the page (not down, not sideways), not multiplied
+const VERSION = 'v2026-11-19a', LIVES = 3, DIST_PT = 2;   // one point per DIST_PT units the ball travels up the page (not down, not sideways), not multiplied
 // Old page widths per orientation (portrait, square-ish, wide); the page is now three times as wide.
 const baseW = () => portrait() ? 10 : innerWidth / innerHeight < 1.5 ? 17 : 24;
 
@@ -224,17 +224,34 @@ const LB = {
     } catch (e) { console.warn('Leaderboard', path, e?.message); return null; } finally { clearTimeout(timer); }
   },
   // run = { player, name, score, multiplier, articles, target, reached, daily, day, seconds, version, endedOn } -> { rankAllTime, rankDaily, totalPlayers } | null
+  // The answer also carries the updated top lists (top = all-time, daily = today's, or null for a non-daily run); they go straight into the cache,
+  // so the screens never fetch again after a save. No Content-Type header: a text/plain POST needs no CORS preflight (the Worker parses JSON anyway).
   async submit(run) {
     if (/^(localhost|127\.|\[::1\])/.test(location.hostname)) return null;     // a local test copy never writes to the real leaderboard
     const body = { player: run.player, name: run.name, score: Math.round(run.score), multiplier: Math.round(run.multiplier), articles: Math.round(run.articles),
       target: run.target, reached: run.reached, daily: !!run.daily, day: run.day, seconds: run.seconds, version: run.version, endedOn: run.endedOn || null };
-    const x = await this.req('submit', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    return x && typeof x === 'object' ? { rankAllTime: +x.rankAllTime || null, rankDaily: +x.rankDaily || null, totalPlayers: +x.totalPlayers || null } : null;
+    const x = await this.req('submit?n=' + this.N, { method: 'POST', keepalive: true, body: JSON.stringify(body) });
+    if (!x || typeof x !== 'object') return null;
+    const all = this.clean(x.top), day = this.clean(x.daily);
+    if (all) this.cache.alltime = Promise.resolve(all);
+    if (day) this.cache.daily = Promise.resolve(day);
+    return { rankAllTime: +x.rankAllTime || null, rankDaily: +x.rankDaily || null, totalPlayers: +x.totalPlayers || null };
   },
+  N: 5,
+  clean(d) { return Array.isArray(d) ? d.slice(0, this.N).map(x => ({ name: String(x?.name || 'Anonymous').slice(0, 20), score: +x?.score || 0, endedOn: x?.endedOn ? String(x.endedOn).slice(0, 80) : '' })) : null; },
+  // Each list is fetched at most once per page load and then kept here (refreshed only by a save's answer). A failed fetch ("Leaderboard offline")
+  // may be tried again, but not more than once a minute.
+  cache: { alltime: null, daily: null }, failedAt: { alltime: 0, daily: 0 },
   // scope 'daily' | 'alltime' -> [{ name, score, endedOn }] | null
-  async top(scope, n = 5) {
-    const d = await this.req(`top?scope=${encodeURIComponent(scope)}&day=${encodeURIComponent(DAY)}&n=${n}`);
-    return Array.isArray(d) ? d.slice(0, n).map(x => ({ name: String(x?.name || 'Anonymous').slice(0, 20), score: +x?.score || 0, endedOn: x?.endedOn ? String(x.endedOn).slice(0, 80) : '' })) : null;
+  top(scope) {
+    if (this.cache[scope]) return this.cache[scope];
+    if (Date.now() - this.failedAt[scope] < 60e3) return Promise.resolve(null);
+    const p = this.req(`top?scope=${encodeURIComponent(scope)}&day=${encodeURIComponent(DAY)}&n=${this.N}`).then(d => {
+      const t = this.clean(d);
+      if (!t && this.cache[scope] === p) { this.cache[scope] = null; this.failedAt[scope] = Date.now(); }
+      return t;
+    });
+    return this.cache[scope] = p;
   },
 };
 function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -1255,7 +1272,7 @@ async function renderEndTops() {
   const note = t => `<li style="list-style:none;margin-left:-20px">${t}</li>`;
   const list = (top, empty) => top ? (top.length ? top.map(t => `<li>${esc(t.name)} · <b>${t.score}</b>${t.endedOn ? ` <span class="on">· ${esc(t.endedOn)}</span>` : ''}</li>`).join('') : note(empty)) : note('Leaderboard offline');
   $('enddaily').innerHTML = $('endall').innerHTML = note('Loading…');
-  const [day, all] = await Promise.all([LB.top('daily', 5), LB.top('alltime', 5)]);
+  const [day, all] = await Promise.all([LB.top('daily'), LB.top('alltime')]);
   $('enddaily').innerHTML = list(day, 'No scores yet today'); $('endall').innerHTML = list(all, 'No scores yet');
 }
 async function renderMenu() {
@@ -1267,7 +1284,7 @@ async function renderMenu() {
   const list = (top, empty) => top ? (top.length ? top.map(t => `<li>${esc(t.name)} · <b>${t.score}</b>${t.endedOn ? ` <span class="on">· ${esc(t.endedOn)}</span>` : ''}</li>`).join('') : note(empty)) : note('Leaderboard offline');
   if (!$('hsall')) $('hstop').insertAdjacentHTML('afterend', '<span class="lab" style="display:block;margin-top:8px">All-time top 5</span><ol id="hsall"></ol>');
   $('hsall').innerHTML = note('Loading…');
-  const [day, all] = await Promise.all([LB.top('daily', 5), LB.top('alltime', 5)]);
+  const [day, all] = await Promise.all([LB.top('daily'), LB.top('alltime')]);
   $('hstop').innerHTML = list(day, 'No scores yet today');
   $('hsall').innerHTML = list(all, 'No scores yet');
 }
